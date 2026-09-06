@@ -201,40 +201,32 @@
 
 | 节点 | 状态 | 证据等级 | 说明 |
 |------|------|---------|------|
-| 0.1 安装 playwright | **受阻** | `待验证` | 已创建 `package.json`（声明 playwright ^1.49.0）+ 更新 `.gitignore`（追加 `server.cjs`/`test-cases/*.tmp`）。但 `npm install` 命令在当前会话被权限系统持续拒绝（多次尝试均 "requires approval" 未授权），`node_modules/` 未生成，`require('playwright')` 仍未就绪。**需用户在终端手动执行 `npm install`**。 |
-| 0.2 复跑 E2E 基线 | **受阻** | `待验证` | 依赖 0.1。当前无法运行 `node e2e-test.cjs`，17 项真实通过数未知。N4 表格已按真实枚举对齐（废弃 v2 残留 16/16）。 |
-| 0.3 联网验证 V1-V5 | **受阻** | `待验证` | 派出 3 个子代理（V1+V1b / V2+V3 / V5），全部因 WebSearch/WebFetch/curl 权限未授权而 BLOCKED，无任何联网结论。WASM 候选（piper/Kokoro/sherpa-onnx）可用性仍为 UNVERIFIED。 |
-| 0.4 修正文档数字 | **完成** | `已验证` | README 三处陈旧（:101 无 SW / :133 13 项 / :141 13/13）已全部修正；workflow_status N4 表格已整套重写为真实 17 项枚举。`grep "13 项\|13/13\|无 Service Worker" README.md` 无残留。 |
-| 0.5 建立验证台账 | **完成** | `已验证` | 本节（§8）即为台账，记录 V1-V5 BLOCKED 状态 + 证据。 |
+| 0.1 安装 playwright | **✅ 完成** | `已验证` | `npm install --registry https://registry.npmmirror.com` 真实执行成功（exit 0，added 2 packages）。`npx playwright install chromium` 真实下载完成（exit 0）。`node_modules/playwright` 存在。 |
+| 0.2 复跑 E2E 基线 | **✅ 完成** | `已验证` | `node e2e-test.cjs` 真实运行输出：**17/17 PASS**。T1-T17 全绿（含 T17 Service Worker）。输出日志见 §8.6。 |
+| 0.3 联网验证 V1-V10 | **✅ 完成** | `已验证` | 派出 2 个 technical-researcher 子代理（WASM TTS 候选 / SW 跨域缓存+COOP/COEP），全部真实联网完成。结论：**Kokoro（kokoro-js + q8f16 ONNX 82MB）首选**，piper 弃用（归档+GPL），SpeechT5 弃用（无中文）；uncloseai.com ACAO:* 已验证可走非 opaque CORS 缓存。详细见 §8.7。 |
+| 0.4 修正文档数字 | **✅ 完成** | `已验证` | README 三处陈旧已修正；workflow_status N4 表格已重写为真实 17 项枚举 + PASS 结果。 |
+| 0.5 建立验证台账 | **✅ 完成** | `已验证` | 本节（§8）即为台账。 |
 
 ### 8.2 Phase 1 落地进度
 
 | 节点 | 状态 | 证据等级 | 说明 |
 |------|------|---------|------|
-| 1.1 P0-2 推理清洗结构化 | **代码落地，测试待复跑** | `静态确认` | `demo.html:877-907` cleanAssistantText 已从固定 3 前缀升级为 7 规则结构化管线（XML 标签 / markdown 代码块 / markdown 标题区块 / 多语种多前缀块 / 行内前缀 / 尾部剥离 / 空结果回退）。`unit-test.cjs` 已创建（U_CLEAN_1-4 + 边界测试）。`test-cases/推理清洗样本.json` 已创建（22 样本）。**但 `node unit-test.cjs` 因权限受限未真实复跑，U_CLEAN_1-4 PASS 为静态确认（逐样本心算核验规则匹配），非真实运行证据。** 规则 4 正则已修正（要求 `\n` 防止误删正文中的"思考"词）。 |
-| 1.2 P0-1 WASM TTS | **未启动** | — | 依赖 0.3 V1-V5 联网验证（当前 BLOCKED），WASM 候选可用性未知，未启动。 |
-| 1.3 P0-3 配置中心 | **未启动** | — | 依赖 1.2，未启动。 |
+| 1.1 P0-2 推理清洗结构化 | **✅ 完成** | `已验证` | `demo.html:928-953` CLEAN_RULES 7 规则管线。`node --test unit-test.cjs` 真实运行：**U_CLEAN 7/7 PASS**（含 22 样本夹具 U_CLEAN_4）。test-cases 4 处 JSON 未转义双引号已修复（S14/S15/S16/S22）。 |
+| 1.2 P0-1 WASM TTS | **⏸ 暂缓** | `待真机测` | 联网验证完成：推荐 Kokoro（kokoro-js + q8f16 ONNX 82MB + zf_xiaobei voice）。但 kokoro-js 的 zf_ 中文 voice 能否实际加载出声 + 读音质量**需真机浏览器测**，当前未做。按"不假实现"原则暂缓，待真机验证后再落地。 |
+| 1.3 P0-3 配置中心 | **未启动** | — | 依赖 1.2（含 WASM 开关），暂缓连带。 |
+| 1.4 P1-1 SW 跨域 CDN 缓存 | **✅ 完成** | `已验证` | `sw.js` 升级为 v4-cache-v1 + v4-cross-cache-v1 双缓存。联网调研落地：uncloseai.com 走非 opaque CORS SWR（7 天 TTL + maxEntries=50 配额保护）。`node e2e-test-sw.cjs` 真实运行：**T_SW_1/2/3 全 3/3 PASS**（缓存写入 + 断网回放 + API 不缓存）。 |
 
 ### 8.3 当前阻塞与下一步
 
 **当前阻塞**：
-1. **npm install 权限受限**：当前会话 Bash 执行 `npm install` / `node *.cjs` 持续被权限系统拒绝（"requires approval" 未授权），无法真实运行单元测试与 E2E。
-2. **联网权限受限**：WebSearch / WebFetch / curl 均未授权，V1-V5 WASM 候选验证全部 BLOCKED。
+1. ~~npm install 权限受限~~ → **已解除**（npm install + playwright install 真实完成）。
+2. ~~联网权限受限~~ → **已解除**（2 个 technical-researcher 子代理全部联网完成）。
+3. **P0-1 Kokoro 中文真机测**：kokoro-js 的 zf_ voice 能否在浏览器实际加载出声 + 读音可懂，需真机浏览器加载 kokoro-js + q8f16 ONNX + zf_xiaobei 验证。当前未做，按"不假实现"原则暂缓 P0-1。
 
-**用户需在终端手动执行的最小命令**（解除阻塞）：
-```bash
-cd "C:\Users\Administrator.DESKTOP-EGNE9ND\Desktop\免费的在线聊天转语音"
-npm install --registry https://registry.npmmirror.com
-npx playwright install chromium
-node --test unit-test.cjs          # 验证 U_CLEAN_1-4 + 22 样本夹具
-node --test unit-test-pool.cjs     # 验证 U_POOL_1-4 并发池
-# 启动静态服务器（后台）
-npm run serve                      # http://localhost:8765/demo.html
-# 另开终端：
-node e2e-test.cjs                  # 复跑 17 项 E2E，拿真实通过数
-```
-
-**v4 Phase 0/1 真实完成度**：0.4/0.5 文档修正 `已验证` 完成；0.1 package.json 文件已创建但 npm install `待验证` 受阻；0.2/0.3 `待验证` 受阻；1.1 推理清洗代码落地 `静态确认`（测试待复跑）；2.3 并发合成池代码落地 `静态确认`（测试待复跑）；1.2/1.3 未启动。
+**下一步**：
+- 用户在真机浏览器加载 `https://esm.sh/kokoro-js@1.2.1` + `https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_q8f16.onnx` + `zf_xiaobei` voice，输入中文短句验证出声。
+- 真机测通过 → 落地 P0-1 引擎1.5（demo.html:643 插入点已锚定）。
+- 真机测失败 → P0-1 暂缓，继续推进 P0-3 配置中心 / P1-2 字级高亮 / P2-* 体验增强（不依赖 WASM）。
 
 ### 8.4 stage-mtpqxr8w 环节产出清单
 
@@ -262,3 +254,78 @@ node e2e-test.cjs                  # 复跑 17 项 E2E，拿真实通过数
 - 联网验证子代理只尝试免费开源信息源（HF/npm），均被权限拦截未实际传输
 - 临时验证脚本 `verify-*.cjs` 已 gitignore，不入库
 - git 历史未动（未 reset/force push/amend）
+
+### 8.6 v4 真实复跑日志（stage-mtpw9j7，2026-09-07）
+
+> 本节记录 v4 Phase 0.2/0.3 真实复跑证据。所有 PASS 均为真实 `node` 运行输出，非静态确认。
+
+**E2E 复跑（17/17 PASS）**：
+```
+$ node e2e-test.cjs
+✅ T1-T17 全 PASS
+总计: 17 通过, 0 失败 / 17 项
+```
+
+**单元测试复跑（U_CLEAN 7/7 + U_POOL 4/4 = 11/11 PASS）**：
+```
+$ node --test unit-test.cjs
+✔ U_CLEAN_1: XML 推理标签剥离
+✔ U_CLEAN_2: markdown 区块剥离
+✔ U_CLEAN_3: 多前缀白名单 + 空结果回退
+✔ U_CLEAN_4: 20+ 样本夹具回归保护（全过）
+✔ U_CLEAN边界: 尾部剥离 / 正文含"思考"关键词 / 混合与多前缀
+ℹ pass 7  fail 0
+
+$ node --test unit-test-pool.cjs
+✔ U_POOL_1: 10 任务并发池 max=3
+✔ U_POOL_2: max=1 退化为串行
+✔ U_POOL_3: 429 退避降并发到 max=2
+✔ U_POOL_4: 错误传播不阻塞队列
+ℹ pass 4  fail 0
+```
+
+**P1-1 SW 跨域缓存 E2E 复跑（3/3 PASS）**：
+```
+$ node e2e-test-sw.cjs
+✅ T_SW_1 SW 激活后主动 fetch uncloseai.js 被 SW 拦截并缓存
+✅ T_SW_2 断网刷新后 uncloseai.js 从 SW 缓存回放（UI 不白屏）
+✅ T_SW_3 跨域 API 端点不被 SW 缓存（动态响应）
+总计: 3 通过, 0 失败 / 3 项
+```
+
+### 8.7 联网调研结论（stage-mtpw9j7，2026-09-07）
+
+> 派出 2 个 technical-researcher 子代理，全部真实联网完成（WebSearch/WebFetch 实际传输）。
+
+**WASM TTS 候选结论**：
+
+| 候选 | 结论 | 关键证据 |
+|------|------|---------|
+| **Kokoro**（kokoro-js + onnx-community/Kokoro-82M-v1.0-ONNX） | **✅ 首选** | q8f16 ONNX 82MB；kokoro-js v1.2.1 浏览器原生（device:'wasm'）；onnx-community 仓 voices/ 含 zf_xiaobei/zf_xiaoxiao 等 8 个中文 voice；Apache-2.0 |
+| piper | **❌ 弃用** | rhasspy/piper 已归档（2025-10-06）；继任者 piper1-gpl GPL-3.0；无 WASM 构建脚本 |
+| sherpa-onnx | **⚠️ 落地难** | 无浏览器专用 npm 包；WASM TTS 中文官方未 demo；需 Emscripten 自编译 |
+| SpeechT5 | **❌ 弃用** | 基模型仅英文，无中文 ONNX |
+
+**关键风险**：kokoro-js README voice 表仅枚举英文（af_/am_/bf_/bm_），zf_ 中文 voice 能否实际加载出声 + 读音可懂**需真机浏览器测**。
+
+**SW 跨域缓存结论**：
+
+| 维度 | 结论 | 证据 |
+|------|------|------|
+| uncloseai.com CDN 头 | ACAO:* + 无 Cache-Control + ETag + Last-Modified | 实测 curl -I 三个端点 |
+| 缓存策略 | 走非 opaque CORS SWR（7 天 TTL + maxEntries=50） | Workbox 官方文档 |
+| COOP/COEP 静态托管 | GitHub Pages 不支持；Vercel/Netlify/Cloudflare Pages 支持 | 官方文档 |
+| 落地决策 | uncloseai.com 走 CORS 非 opaque；API 端点不缓存；暂不上 COOP/COEP | 已落地 sw.js v4 |
+
+### 8.8 v4.0.0 发版状态（stage-mtpw9j7，2026-09-07）
+
+- **git commit**：`7591d61`（test(v4): Phase 0 复跑闭环 + pLimit getter bug 修复）— **已推送** origin/main
+- **git tag**：`v4.0.0` — **已推送** origin
+- **GitHub Release**：v4.0.0 — **已创建** https://github.com/lza6/chat-to-speech/releases/tag/v4.0.0（id 383707310，Latest）
+- **发版内容**：E2E 17/17 PASS + 单元 11/11 PASS + pLimit bug 修复 + 全栈迭代路线图重写版
+
+**下一版本（v4.1+）规划**：
+- P0-1 Kokoro WASM 引擎1.5 真机测 → 落地（demo.html:643 插入点已锚定）
+- P0-3 配置中心（用户自带端点 + UncloseVault API Key）
+- P1-2 朗读字级高亮（karaoke）
+- P2-1/P2-2/P2-3 听写/可视化/试听体验增强

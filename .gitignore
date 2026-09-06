@@ -2,7 +2,7 @@ node_modules/
 *.log
 .tmp/
 .playwright-mcp/
-# 临时调试脚本不入库（Phase 0.1 新增，见 优化计划/全阶段落地闭环完整的步骤+多agent子代理并行计划.md）
+# 临时调试脚本不入库
 server.cjs
 test-cases/*.tmp
 # 临时验证脚本（静态语法/夹具核验用，不入库）
