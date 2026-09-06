@@ -235,6 +235,27 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
     await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
   });
 
+  // === T17: P3-1 Service Worker 离线缓存 ===
+  await test('T17 Service Worker (sw.js 可加载 + demo.html 已注册)', async () => {
+    // sw.js 文件可 fetch 200
+    const swResp = await page.evaluate(async () => {
+      try { const r = await fetch('/sw.js'); return { status: r.status, type: r.headers.get('content-type') }; }
+      catch (e) { return { status: 0, type: null, err: e.message }; }
+    });
+    console.log('   sw.js fetch:', JSON.stringify(swResp));
+    assert(swResp.status === 200, 'sw.js 不可加载，status=' + swResp.status);
+    // demo.html 内含 serviceWorker.register 调用
+    const hasRegister = await page.evaluate(() => {
+      const scripts = Array.from(document.querySelectorAll('script'));
+      return scripts.some(s => /serviceWorker\.register/.test(s.textContent || ''));
+    });
+    assert(hasRegister, 'demo.html 未注册 serviceWorker');
+    // SW 是否已注册（headless 下可能未激活，宽松检查：注册后无致命错误即可）
+    await page.waitForTimeout(500);
+    const consoleErr = consoleErrors.find(e => /serviceWorker|sw-register|sw\.js/i.test(e));
+    assert(!consoleErr, 'SW 注册有控制台错误: ' + consoleErr);
+  });
+
   await browser.close();
 
   // 汇总

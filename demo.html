@@ -6,8 +6,7 @@
     <title>在线聊天转语音 — 免费 AI 对话与朗读</title>
     <!-- 内联 SVG favicon，避免 favicon.ico 404 -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
-    <!-- PWA：可安装到桌面（ponytail: 离线缓存需独立 sw.js，单文件下暂不启用） -->
-    <!-- PWA：可安装到桌面（离线缓存需独立 sw.js，单文件下暂不启用） -->
+    <!-- PWA：可安装到桌面 + 离线缓存（v3 P3-1 启用 sw.js） -->
     <meta name="theme-color" content="#6366f1">
     <link rel="manifest" href="site.webmanifest">
     <!-- Content-Security-Policy：限制脚本/连接来源，降低远程脚本供应链风险。
@@ -1166,6 +1165,11 @@
         loadSynthVoices();
         // P0-2: 预探测端点健康（不阻塞，synthChain 内会再 probe）
         probeTtsEndpoint().then(up => updateEndpointBadge(up));
+        // P3-1: 注册 Service Worker 实现离线缓存（网络优先回退缓存）
+        // 断网后刷新页面不白屏，闭环②仍可走浏览器内置引擎出声
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch(e => logError(e.message, 'sw-register'));
+        }
 
         waitForApi()
             .then(() => {
