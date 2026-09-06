@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v2 变更报告 — 在线聊天转语音</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-0: #0a0e1a;
+    --bg-1: #141a2e;
+    --surface: rgba(28, 36, 56, 0.72);
+    --surface-2: rgba(40, 50, 78, 0.55);
+    --border: rgba(110, 130, 180, 0.22);
+    --border-strong: rgba(140, 160, 210, 0.4);
+    --text: #e6ecf5;
+    --text-dim: #9aa7c2;
+    --text-faint: #6b7794;
+    --accent: #6ee7ff;
+    --accent-2: #a78bfa;
+    --p0: #ff6b8b;
+    --p1: #ffb86b;
+    --p2: #7ee787;
+    --code-bg: rgba(10, 14, 26, 0.85);
+    --code-key: #ff79c6;
+    --code-str: #f1fa8c;
+    --code-fn: #8be9fd;
+    --code-cmt: #6272a4;
+  }
+  html, body {
+    background: radial-gradient(1200px 700px at 15% -5%, #1b2440 0%, transparent 55%),
+                radial-gradient(1000px 600px at 95% 10%, #2a1b40 0%, transparent 50%),
+                linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero {
+    text-align: center;
+    margin-bottom: 56px;
+    padding: 40px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,0.6);
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #0a0e1a;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(120deg, #fff 30%, var(--accent) 60%, var(--accent-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 15px; }
+  section {
+    margin-bottom: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #0a0e1a;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  h3 { font-size: 16px; margin: 20px 0 10px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-dim); }
+  p strong, li strong { color: var(--text); }
+  ul, ol { margin: 10px 0 14px 22px; color: var(--text-dim); }
+  li { margin-bottom: 6px; }
+  code, pre {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 13px;
+  }
+  code {
+    background: rgba(110, 231, 255, 0.1);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+    line-height: 1.55;
+  }
+  pre code { background: none; color: var(--text); padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    background: var(--surface-2);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .pill-p0 { background: rgba(255, 107, 139, 0.18); color: var(--p0); border: 1px solid rgba(255, 107, 139, 0.4); }
+  .pill-p1 { background: rgba(255, 184, 107, 0.18); color: var(--p1); border: 1px solid rgba(255, 184, 107, 0.4); }
+  .pill-p2 { background: rgba(126, 231, 135, 0.18); color: var(--p2); border: 1px solid rgba(126, 231, 135, 0.4); }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 8px;
+  }
+  .meta-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .meta-card .label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-card .val { font-size: 14px; color: var(--text); font-weight: 600; }
+  .risk-list li::marker { color: var(--p1); }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  }
+  .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .card-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: rgba(110, 231, 255, 0.1);
+    border: 1px solid rgba(110, 231, 255, 0.3);
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+  .card p { font-size: 14px; line-height: 1.65; margin: 0; color: var(--text-dim); }
+  .card p strong { color: var(--text); }
+  footer { text-align: center; color: var(--text-faint); font-size: 12px; margin-top: 48px; }
+  @media (max-width: 640px) {
+    .wrap { padding: 24px 14px 80px; }
+    section { padding: 20px 16px; }
+    header.hero { padding: 28px 16px; }
+    table { font-size: 13px; }
+    th, td { padding: 10px 8px; }
+    .cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="badge">v1 → v2</span>
+    <h1>v2 变更报告</h1>
+    <p class="subtitle">在线聊天转语音 · 纯前端单文件 demo.html</p>
+    <div class="meta-grid">
+      <div class="meta-card"><div class="label">项目形态</div><div class="val">单文件 HTML + uncloseai.js</div></div>
+      <div class="meta-card"><div class="label">三条闭环</div><div class="val">AI对话 / TTS / 整页朗读</div></div>
+      <div class="meta-card"><div class="label">变更范围</div><div class="val">11 项修复（P0×1 · P1×5 · P2×1 · 其他×4）</div></div>
+      <div class="meta-card"><div class="label">验证方式</div><div class="val">Playwright 实测</div></div>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="num">1</span>上下文</h2>
+    <p>这是一个纯前端单文件 <code>demo.html</code>，接入远程 <code>uncloseai.js</code> 库，在同一页面内实现三条闭环：①<strong>AI 对话</strong>（文本输入 → AI 回复展示）②<strong>文本转语音</strong>（输入文本 → 选语音播放 → 可下载）③<strong>整页朗读</strong>（一键朗读页面主要内容）。</p>
+    <p>v1 已跑通三条闭环，但存在若干阻断性与体验性缺陷：最严重的是停止播放时进入死锁，导致后续操作无响应；其次是下载的音频不完整、整页朗读把按钮文字和 41 个语音名也读出来、空格快捷键在按钮上双重触发等。v2 围绕这些问题逐项修复，并对 PWA manifest、CSP 策略做了配套调整。</p>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span>直觉与权衡（跳过了什么、为什么）</h2>
+    <ul>
+      <li><strong>跳过 Service Worker 离线缓存</strong>：Blob URL 在 Chrome 受 scope 限制注册 SW 不可靠，强行接入反而引入难以调试的缓存问题。当前单文件 demo 的核心路径依赖远程库与网络 API，离线收益有限。<span style="color:var(--text-faint)">升级路径：若未来需要离线，应先剥离远程库依赖或改用同源托管。</span></li>
+      <li><strong>跳过 SRI（子资源完整性 hash）</strong>：远程 <code>uncloseai.js</code> 内容会随版本更新变化，固化 hash 会破坏加载。库本身已通过 CSP 白名单限定来源，安全性由可信源约束兜底。</li>
+      <li><strong>跳过 <code>extractWebpageContent</code></strong>：实测该库函数返回空对象 <code>{}</code>，不可用。改用自实现的 <code>extractReadableText()</code> 精确控制抓取范围。</li>
+      <li><strong>保留 <code>speed</code> 参数</strong>：实测端点确实支持（<code>speed=1.5</code> 生成的音频文件比 <code>speed=1</code> 小，证明参数生效并影响编码）。虽非关键路径，但成本极低、收益明确，予以保留。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span>做了什么（按优先级分级）</h2>
+
+    <h3>P0 — 阻断性</h3>
+    <table>
+      <thead><tr><th style="width:110px">优先级</th><th>问题</th><th>根因</th><th>修复</th><th>验收</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="pill pill-p0">P0</span></td>
+          <td>停止播放后页面"卡死"，后续点击无响应</td>
+          <td><code>stopPlayback</code> 置 <code>audio.src=''</code> 触发 <code>emptied</code> 事件，但<strong>不触发</strong> <code>ended</code> 或 <code>error</code>。<code>playBlob</code> 内 <code>await</code> 永远挂起，Promise 链断裂。</td>
+          <td>引入 <code>currentPlaybackResolve</code> 句柄，<code>stopPlayback</code> 显式调用该 resolve 解锁 await；播放正常结束/出错时也清空句柄。</td>
+          <td>Playwright 连续"播放→停止→再播放"3 轮无挂起，<code>isSynthesizing</code> 状态正确复位。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>P1 — 重要体验缺陷</h3>
+    <table>
+      <thead><tr><th style="width:110px">优先级</th><th>问题</th><th>根因</th><th>修复</th><th>验收</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td>下载的音频只有最后一块</td>
+          <td>v1 下载变量只保留最后一个 blob；TTS 是分块流式返回，前面块被丢弃。</td>
+          <td>用 <code>audioBlobs[]</code> 数组收集本轮所有成功播放的 blob，下载时 <code>new Blob(audioBlobs, {type:'audio/mpeg'})</code> 拼接；文件名含语音名 + 时间戳。</td>
+          <td>下载文件时长与播放时长一致，可完整播放。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td>整页朗读读出按钮文字和 41 个语音名</td>
+          <td>v1 用 <code>main.innerText</code> 抓取所有可见文本，包含 UI 控件与下拉选项。</td>
+          <td>自实现 <code>extractReadableText()</code>，仅精确提取<strong>标题 + 输入框内容 + 聊天回复</strong>，过滤掉所有按钮/选项/状态文案。</td>
+          <td>朗读内容只含语义文本，不再出现"播放""下载""已加载 N 个语音"等 UI 文字。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td><code>speed</code> 参数是否生效存疑</td>
+          <td>需确认端点是否真正消费该参数。</td>
+          <td>实测对比：<code>speed=1.5</code> 生成文件体积小于 <code>speed=1</code>，证明参数被消费。保留传参。</td>
+          <td>不同 speed 值产出可听差异的语速。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td>空格快捷键在按钮上双重触发</td>
+          <td>v1 全局监听空格，Tab 聚焦到按钮后按空格既触发快捷键又激活按钮。</td>
+          <td>监听器加 <code>!/button/i.test(target.tagName)</code> 守卫，按钮聚焦时空格不触发快捷键逻辑。</td>
+          <td>聚焦按钮按空格仅激活按钮，不重复触发朗读。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td>状态栏被"已加载 N 个语音"覆盖真实错误</td>
+          <td>v1 <code>initVoices</code> 无条件写入成功文案，把库加载失败提示顶掉。</td>
+          <td>加守卫：仅当 <code>tts-status</code> 当前文案<strong>不含</strong>"失败/不可用"时才覆盖。</td>
+          <td>库加载失败时错误文案保留可见，不被覆盖。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>P2 与配套</h3>
+    <table>
+      <thead><tr><th style="width:110px">优先级</th><th>问题</th><th>根因</th><th>修复</th><th>验收</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="pill pill-p2">P2</span></td>
+          <td>历史记录同句重复堆积</td>
+          <td>v1 同一文本+语音组合被多次插入。</td>
+          <td>按 <code>text + voice</code> 去重，命中则移除旧条目后将最新移至头部。</td>
+          <td>同句同语音只保留最新一条，且位于顶部。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p1">P1</span></td>
+          <td>进度条在新一轮合成中可能被错误隐藏</td>
+          <td>v1 用 <code>setTimeout(800ms)</code> 隐藏进度条，定时器可能跨越到下一轮。</td>
+          <td>用 <code>finishId</code> 绑定本轮请求 ID，回调中校验 <code>speakRequestId === finishId</code> 才隐藏。</td>
+          <td>连续两轮合成时，第一轮进度条不影响第二轮显示。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p2">P2</span></td>
+          <td>PWA manifest 内中文被 URI 编码破坏 JSON</td>
+          <td>data URI 形式的 manifest 含中文字符被编码后 JSON 解析失败。</td>
+          <td>改用独立 <code>site.webmanifest</code> 文件，UTF-8 直读。</td>
+          <td>manifest 解析正常，应用名/图标配置生效。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p2">P2</span></td>
+          <td>CSP 阻止库自带字体/样式加载</td>
+          <td>库从 uncloseai.com 拉取样式与字体，未列入白名单。</td>
+          <td>在 <code>font-src</code> / <code>style-src</code> 加入 <code>uncloseai.com</code>。</td>
+          <td>控制台无 CSP 违规报错，库 UI 正常渲染。</td>
+        </tr>
+        <tr>
+          <td><span class="pill pill-p2">P2</span></td>
+          <td>体验补强</td>
+          <td>v1 仅基础闭环。</td>
+          <td>动态语音列表 41+ 个、主题三态切换、错误日志、进度条、下载、历史、示例 chips、键盘快捷键。</td>
+          <td>各功能在 Playwright 下可交互且符合预期。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="num">4</span>验证证据（Playwright 实测）</h2>
+    <ul>
+      <li><strong>死锁修复</strong>：连续执行"播放→停止→播放→停止→播放"，无 Promise 挂起，<code>isSynthesizing</code> 每轮正确归零。</li>
+      <li><strong>整页朗读过滤</strong>：触发整页朗读后抓取 TTS 输入文本，确认不含"播放/下载/已加载 N 个语音"等 UI 文案，仅含标题与聊天回复。</li>
+      <li><strong>下载完整性</strong>：长文本合成后下载，文件可从头播到尾，时长与播放一致。</li>
+      <li><strong>历史去重</strong>：同一文本+语音连续提交 3 次，历史区仅 1 条且位于顶部。</li>
+      <li><strong>进度条绑定</strong>：快速连续触发两轮合成，第二轮进度条不被第一轮定时器误隐藏。</li>
+      <li><strong>状态覆盖守卫</strong>：模拟库加载失败文案存在时，<code>initVoices</code> 不覆盖错误提示。</li>
+      <li><strong>manifest / CSP</strong>：控制台无 CSP 违规，manifest 被浏览器正确解析。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">5</span>剩余风险</h2>
+    <ul class="risk-list">
+      <li><strong>聊天接口 CORS</strong>：AI 对话走远程端点，若服务端未返回正确 CORS 头，浏览器侧可能被拦。当前未在服务端侧验证，仅依赖端点现状。</li>
+      <li><strong>iOS 未真机测</strong>：所有验证基于桌面 Playwright（Chromium）。iOS Safari 的音频自动播放策略、<code>audio.src=''</code> 行为差异未真机验证，存在回归风险。</li>
+      <li><strong>远程库版本漂移</strong>：<code>uncloseai.js</code> 内容可变（未加 SRI），未来若库 API 变更可能破坏调用方。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">6</span>知识点速览（10 张）</h2>
+    <p style="margin-bottom:20px">用最少的字说清这次变更的关键点。读完即掌握，不用答题。</p>
+    <div class="cards">
+      <div class="card">
+        <div class="card-tag">P0 死锁根因</div>
+        <p><code>stopPlayback</code> 置 <code>audio.src=''</code> 只触发 <code>emptied</code> 事件，<strong>不</strong>触发 <code>ended</code> 或 <code>error</code>。而 <code>playBlob</code> 的 <code>await</code> 监听的是 <code>ended/error</code>，于是永远不 resolve → 第二次朗读卡死。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">P0 修复机制</div>
+        <p>引入模块级 <code>currentPlaybackResolve</code> 句柄：<code>playBlob</code> 起始处登记当前 resolve，<code>stopPlayback</code> 在置空 <code>src</code> 前显式调用它 <code>resolve('stopped')</code>，强制解锁挂起的 Promise，闭环"停止→再朗读"。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">整页朗读过滤</div>
+        <p>弃用 <code>main.innerText</code>（会抓到 41 个语音名+按钮文字+计数器），改用 <code>extractReadableText()</code>：精确选择器（标题 + 朗读输入框 + 聊天回复），兜底用 clone 节点删除 UI 元素后取文本。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">完整音频下载</div>
+        <p>v1 的 <code>lastBlobUrl</code> 只指向最后一块，5000 字下载只剩末段。v2 改为 <code>audioBlobs[]</code> 数组收集所有播放成功的块，下载时 <code>new Blob(audioBlobs, {type:'audio/mpeg'})</code> 拼接，文件名带语音+时间戳。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">空格键防双重触发</div>
+        <p>当用户 Tab 到按钮按空格，浏览器会触发按钮 click；全局空格暂停 handler 同时跑 → 双重触发。守卫：<code>if (e.code==='Space' &amp;&amp; currentAudio &amp;&amp; !/button/i.test(e.target.tagName))</code>。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">错误文案守卫</div>
+        <p><code>initVoices</code> 在 <code>waitForApi.catch</code> 后也会跑，可能用"已加载 41 语音"覆盖"加载失败"。守卫：<code>if (!statusEl.textContent.includes('失败/不可用'))</code> 才更新文案。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">进度条守卫</div>
+        <p>v1 用 800ms <code>setTimeout</code> 隐藏进度条，不绑本轮 → 新一轮刚启动就被旧定时器误藏。v2 在 setTimeout 内比对 <code>finishId === speakRequestId</code>，只有仍是本轮才隐藏。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">主动跳过项</div>
+        <p>Service Worker 跳过：Blob URL 注册在 Chrome scope 不可靠，留独立 sw.js 升级路径。SRI 不加：<code>uncloseai.js</code> 远程内容会变。弃用 <code>extractWebpageContent()</code>：返回空 <code>{}</code>。<code>speed</code> 参数实测保留生效。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">PWA manifest 文件化</div>
+        <p>data URI 内的中文字符被浏览器 URL 编码，<code>%22</code> 替换 JSON 引号 → 解析失败。改用独立 <code>site.webmanifest</code> 文件承载纯 ASCII JSON，<code>manifest</code> 链接指向该文件。</p>
+      </div>
+      <div class="card">
+        <div class="card-tag">历史去重策略</div>
+        <p>key = <code>text || voice</code>（同一文本用不同语音朗读应视为不同条目）。命中后行为：移除旧条目 → 把最新 unshift 到头部，保证"最新且不重复"，最多保留 20 条。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>最后更新 2026-07-09 · v2 变更报告 · 在线聊天转语音</footer>
+</div>
+
+<script>
+/* 知识点速览为纯阅读内容，无需交互脚本。 */
+</script>
+</body>
+</html>

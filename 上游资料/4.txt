@@ -1,0 +1,158 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+F5-TTS — 实时
+Qwen3-TTS
+Piper TTS
+XTTS v2
+Silero TTS
+心 TTS
+我们的爬行者
+反向 RAG
+所有语言
+书
+解开 ai。
+开源文本转语音
+
+汽车
+光
+黑暗的
+浣熊任务：营救被遗弃的 TTS 模型
+uncloseai-speech 是我们社区驱动的一项计划，旨在拯救、保存和统一废弃的文本转语音模型，使其成为一个单一的、具有弹性的、可自托管的 API。
+
+“为什么是浣熊？” 因为就像浣熊一样，我们挖掘废弃的 GitHub 代码库和已存档项目的数字垃圾桶，拯救那些被组织机构遗弃的宝贵开源 TTS 模型。我们为它们找到新的归宿，维护它们，并让所有人都能访问它们。
+
+零 API 密钥： 无需注册、无需跟踪、无需限制您自己的基础设施的速率
+兼容 OpenAI： 即插即用——只需更改一个 URL 即可运行
+六款 TTS 引擎： 各有优势，但都基于同一 API。
+内置 42 种克隆语音： 41 种来自 LibriSpeech 公共领域 + 1 种自录制语音，支持 10 种语言
+自托管： 基于 Docker Compose 和 Makefile，可在您的硬件上运行
+AGPL v3 许可： 永久保持 TTS 自由
+当前直播内容
+我们的公共接口运行的是 F5-TTS—— 一个基于流匹配的语音克隆引擎，在相同的参考音频上，其性能基准测试结果比 Qwen3-TTS 更快，生成的克隆语音也更清晰。它包含 42 种不同的人声：41 种克隆自 LibriSpeech 公共领域语料库，以及操作员自己录制的声音（ foxhop ，语音 42）。该操作员精通 10 种语言，首次音频处理时间不到 100 毫秒。
+
+# Female voice
+curl https://speech.ai.unturf.com/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "We rescue abandoned text-to-speech models and give them a new home. No API keys, no tracking, just open source voices for everyone.",
+    "voice": "aria"
+  }' > aria.mp3
+# Male voice
+curl https://speech.ai.unturf.com/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Like raccoons digging through digital dumpsters, we find the best open source TTS models that big companies left behind, and we make them accessible to everyone.",
+    "voice": "atlas"
+  }' > atlas.mp3
+# Voice 42 — the operator's own self-recorded voice
+# (slot 41 intentionally empty, in honor of Douglas Adams)
+curl https://speech.ai.unturf.com/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "This voice is self-recorded. I am number forty-two, and slot forty-one is intentionally empty, in honor of Douglas Adams.",
+    "voice": "foxhop"
+  }' > foxhop.mp3
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="not-needed",
+    base_url="https://speech.ai.unturf.com/v1"
+)
+
+client.audio.speech.create(
+    voice="aria",
+    input="Raccoon mission. We dig through abandoned repos and rescue the best open source speech models before they disappear."
+).stream_to_file("aria.mp3")
+
+client.audio.speech.create(
+    voice="atlas",
+    input="Six engines, one API. Self-host it, clone any voice, speak ten languages. No vendor lock-in, no API keys, no limits."
+).stream_to_file("atlas.mp3")
+浏览声音和模型
+每个声音都有名称、性别和个性。API 会告诉你哪些声音可用。
+
+→ 查看所有语音   → 查看所有引擎
+
+六台引擎
+六个文本转语音引擎，分别来自开源项目的不同领域，全部运行在同一个兼容 OpenAI 的 API 下。我们的公共接口运行的是 F5-TTS。其他五个引擎可供任何克隆代码库的用户使用。
+
+F5-TTS — 居住
+基于流匹配的语音克隆，支持 42 种语音，10 种语言。模型为 F5-TTS_v1 + Vocos 声码器（约 1.5GB），采用 MIT 许可，源自 Hugging Face 上的 SWivid/F5-TTS 。在相同的参考音频片段上，其推理速度比 Qwen3-TTS 更快，克隆效果也更清晰。目前，我们的公共端点上运行的就是这个模型，名称为 "model":"tts-1-f5" 。
+
+Qwen3-TTS — 自托管
+42 种克隆语音，10 种语言，基于 3 秒采样进行语音克隆。17 亿个参数，首包延迟 97 毫秒。仍保留在代码库中（ "model":"tts-1-qwen" ）；经过直接对比测试，F5-TTS 已将其替换为我们的默认语音合成器。
+
+Piper TTS — 自托管
+支持 100 多种英语语音，仅需 CPU 即可运行，ONNX 运行时环境。速度最快的引擎——专为高容量批处理作业和对延迟要求极高的实时应用而打造。
+
+XTTS v2 — 自托管
+从 6 秒的音频样本中克隆 16 种语言的任意语音。最高保真度，源自 Coqui TTS 项目。需要配备 4GB 显存的 GPU。
+
+Silero TTS — 自托管
+支持 5 种语言共 148 种语音，全部由 CPU 运行。语言包括英语、俄语、德语、西班牙语和法语。输出音质纯净，48kHz 输出，无需 GPU。
+
+Kokoro TTS — 自托管
+8200 万个参数，34 个声道。体积小巧，适用于树莓派或边缘设备。采用 Apache 2.0 许可，24kHz 输出。
+
+自托管
+克隆代码库，部署，即可拥有您自己的生产级 TTS API。所有六个引擎均已包含在内——您可以根据需要启用其中任何一个。
+
+git clone https://git.unturf.com/engineering/unturf/uncloseai-speech.git
+cd uncloseai-speech
+
+# Deploy with GPU (F5-TTS, default)
+make deploy
+
+# Or CPU-only (works anywhere, slower)
+make deploy-cpu
+
+# Download 42 cloned voice samples (LibriSpeech + foxhop self-recorded)
+make voices-f5
+
+# Test it (F5-TTS model ~1.5GB downloads automatically on first use)
+make test-f5
+
+# Enable additional engines
+make voices-piper    # Piper TTS
+make voices-xtts     # XTTS v2
+make voices-silero   # Silero TTS
+make voices-kokoro   # Kokoro TTS
+有关完整文档，请参阅 uncloseai-speech 存储库 。
+
+介入
+我们在 https://speech.ai.unturf.com/v1 运行一个免费的公共端点，但我们需要帮助进行扩展：
+
+捐赠 GPU 时间： 运行一个实例，我们将对社区流量进行负载均衡。
+托管区域镜像： 降低您所在区域用户的延迟
+集成新引擎： StyleTTS2、Fish Speech 和 Chatterbox 都在开发计划中。
+添加语音样本： 扩充语音库，添加各种口音
+资源
+仓库： git.unturf.com/engineering/unturf/uncloseai-speech
+API 接口： https://speech.ai.unturf.com/v1
+Voices: speech.ai.unturf.com/v1/voices
+模型： speech.ai.unturf.com/v1/models
+问题与社区
+请在下方提问、分享您的部署经验或讨论 TTS 研究！
+
+
+© uncloseai. 2025
+
+隐私政策 | 使用条款

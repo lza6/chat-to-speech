@@ -1,0 +1,227 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+uncloseai-cli：本地 LLM 代理
+
+汽车
+光
+黑暗的
+从零开始发展机器学习的三种工具
+uncloseai-cli 代码库包含三个工具，构成一个完整的本地机器学习流水线：代理框架、模型训练和数据集管理。零外部依赖。纯 Python 编写。公共领域。
+
+uncloseai-cli ：基于 Unclose 机器学习（Llama 3.1 8B）的 ReAct 代理框架
+microgpt ：纯 Python GPT 训练器和推理器，零依赖
+garden.mk ：小型模型花园。拉取数据集，培育模型，追踪起源。
+安装
+git clone https://git.unturf.com/engineering/unturf/uncloseai-cli.git
+cd uncloseai-cli
+make install
+在 /usr/local/bin 中创建 uncloseai-cli 、 unclose 、 u 、 microgpt-cli 、 microgpt 。
+
+来源： git.unturf.com/engineering/unturf/uncloseai-cli
+
+uncloseai-cli：本地 LLM 代理
+一个极简的“克劳德代码”风格的工具调用代理，由本地 8B 参数 LLM 提供支持。每个请求都会经过一个待办事项系统：
+
+计划 ：LLM 将请求分解为编号的任务
+修剪 ：Python 会移除冗余信息（例如 open/read、report/inform），最多 5 个。
+执行 ：每个任务都通过一个带有工具访问权限的 ReAct 循环运行。
+前向 ：先前任务的结果会作为上下文传递给后续任务。
+用法
+# Run a task
+unclose "pull and sync"
+
+# Multi-step: agent plans and executes each step
+unclose "what time is it in EST? also run ddate"
+
+# Print-only mode (minimal output, just final answer)
+unclose -p "summarize SYSTEM-PROMPT.md"
+
+# Verbose mode (show turn numbers)
+unclose -v "deploy"
+
+# Interactive REPL
+unclose -i
+配置
+所有配置均通过环境变量完成，无需配置文件。
+
+多变的	默认	描述
+未关闭的基座	https://hermes.ai.unturf.com/v1	兼容 OpenAI 的 API 基本 URL
+未关闭模型	（自动检测）	模型名称来自 /v1/models
+未关闭密钥	永久计算机	API 密钥
+未关闭最大转弯次数	15	每项任务的最大反应回合数
+UNCLOSE_MAX_RESULT	12000	每个工具结果的最大字符数
+
+工具
+该代理可以使用 8 个内置工具：
+
+工具	精氨酸	描述
+狂欢	命令	运行 shell 命令（60 秒超时，危险命令将被阻止）
+读	小路	读取一个文件（截断至 12K 个字符）
+写	路径、内容	创建或覆盖文件
+编辑	路径，旧的，新的	替换文件中的确切字符串
+全球	模式，路径	按 glob 模式查找文件
+grep	模式，路径	使用正则表达式搜索文件内容
+拿来	URL、深度、关键词	获取网页，提取文本（异步爬虫）
+待办事项	内容，活动表单	在执行过程中将任务添加到实时待办事项列表
+网页抓取
+
+单页应用：获取数据，去除 HTML，返回可读文本和链接
+深度抓取 ：关键词感知的多级抓取（最多 10 页）
+符合伦理 ：尊重 robots.txt 文件，延迟爬取，清除用户代理字符串
+渐进式抓取 ：首先抓取目标页面，仅当关键词未被覆盖时才自动深入抓取。
+会话日志
+每个会话都会以 JSONL 格式记录到 ~/.uncloseai/sessions/ 中。使用 unclose-snoop 可以将会话日志解析成易于阅读的日志流：
+
+cat ~/.uncloseai/sessions/*.jsonl | unclose-snoop
+microgpt：纯 Python GPT
+极简的 GPT 训练和推理， 零外部依赖 ：仅需 os 、 math 、 random 、 json 和 argparse 。基于 Karpathy 的 microgpt 。
+
+实现：标量自微分（Value 类）、多头注意力机制、RMSNorm 算法、多层感知器 (MLP)、线性似然比衰减的 Adam 优化器、温度控制采样。支持 JSON 模型持久化，并包含完整的元数据。
+
+用法
+# Train on a text dataset (one document per line)
+microgpt train --dataset names.txt --steps 1024 --save model.json
+
+# Generate samples from a trained model
+microgpt generate --load model.json --samples 10 --temperature 0.5
+
+# Train & generate in one shot
+microgpt run --dataset names.txt --steps 1024 --samples 10
+
+# Inspect a saved model
+microgpt info model.json
+旗帜
+旗帜	默认	子命令
+--dataset 路径	自动下载 names.txt	训练，跑步
+--保存路径	microgpt-model.json	训练，跑步
+--加载路径	（必需的）	产生
+--步骤 N	1000	训练，跑步
+--lr 浮点数	0.01	训练，跑步
+--n-embd N	16	训练，跑步
+--n-head N	4	训练，跑步
+--n 层 N	1	训练，跑步
+--block-size N	16	训练，跑步
+--样本数	20	生成、运行
+--温度浮点数	0.5	生成、运行
+--种子 N	42	全部
+- 安静的	错误的	训练，跑步
+同时还以 microgpt.h 形式提供，这是一个用于模型推理的单头 C 库。
+
+garden.mk：小型模型花园
+提取 15 个精心整理的角色级数据集，并以 3 种不同的规模构建 GPT 模型。每个数据集都记录了其上游来源。镜像到 HuggingFace：russellbal/smol-seeds 。
+
+数据集
+种子	线条	起源	新鲜
+姓名	32K	业力/创造更多	休眠（2022）
+字	97K	dwyl/english-words	稳定（2025）
+宝可梦	1K	sindresorhus/宝可梦	稳定（2024）
+恐龙	1.5K	brunoklein99/深度学习笔记	化石（2018）
+十六进制颜色	32K	xkcd + meodai/颜色名称	积极的
+颜色名称	31K	meodai/颜色名称	积极的
+和弦	1K	tombatossals/chords-db	季刊
+json-keys	4K	GitHub OpenAPI 规范	积极的
+css 类	2K	twbs/bootstrap	季刊
+设定目标	291	从主要代码库抓取	积极的
+提交消息	2万	角度/角度	积极的
+俳句	143K	docmarionum1/haikurnn	化石（2018）
+变量名	3.8K	GitHub 代码库树	积极的
+姓氏	225K	sacrificialpancakes/synthetic_demographics_seed	稳定的
+职业	831	sacrificialpancakes/synthetic_demographics_seed	稳定的
+用法
+# Download all datasets
+make -f garden.mk pull
+
+# Train all models at embedding size 64
+make -f garden.mk grow-64
+
+# Train all at all sizes (64, 128, 512)
+make -f garden.mk grow
+
+# Pull + grow one model family
+make -f garden.mk names
+
+# List upstream sources
+make -f garden.mk origins
+
+# Check upstream freshness
+make -f garden.mk freshness
+
+# Sample from a trained model
+make -f garden.mk sample MODEL=pokemon-64 N=10
+
+# Show trained model inventory
+make -f garden.mk inventory
+
+# Push datasets to HuggingFace mirror
+make -f garden.mk mirror
+型号尺寸
+尺寸	n_embd	n_head	n 层	使用
+64	64	4	1	速度快，适合测试
+128	128	8	2	均衡
+512	512	8	4	纯 Python 运行速度慢，但质量最佳
+建筑学
+代理编排遵循计划-执行-向前推进模式：
+
+User Message
+    ↓
+Plan Phase (LLM call with planning-only prompt)
+    ↓
+JSON task array
+    ↓
+Trim Phase (Python, no LLM)
+  • drop fluff (report/inform)
+  • drop prep (open/read)
+    ↓
+Save to ~/.uncloseai/todos/{session}.json
+    ↓
+┌─→ Any pending tasks? ─── no → Display final todo list ✓
+│       ↓ yes
+│   Mark in_progress
+│       ↓
+│   ReAct Loop (tool calls until done or stuck)
+│       ↓
+│   Mark completed → Save → Append result (≤500 chars)
+└───────┘
+ReAct 循环中的每个任务都可以调用工具、接收结果，并最多迭代 UNCLOSE_MAX_TURNS 次。如果连续两次调用相同的工具，则循环卡死检测会中止循环。
+
+先前任务的结果会作为上下文转发给后续任务，因此多步骤请求可以在先前工作的基础上进行，而无需重新执行命令。
+
+只读模式
+当代理检测到只读意图（提问、搜索、检查）时，它会自动禁用 write 和 edit 工具。这可以防止在信息收集请求中意外修改文件。
+
+执照
+公共领域。知识不受把关人限制。
+
+© uncloseai. 2025
+
+隐私政策 | 使用条款
+概述
+取消关闭 ai-cli
+工具
+微 GPT
+garden.mk
+数据集
+建筑学

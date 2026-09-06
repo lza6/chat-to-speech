@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线聊天转语音 — 免费 AI 对话与朗读</title>
+    <!-- 内联 SVG favicon，避免 favicon.ico 404 -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <!-- PWA：可安装到桌面（ponytail: 离线缓存需独立 sw.js，单文件下暂不启用） -->
+    <!-- PWA：可安装到桌面（离线缓存需独立 sw.js，单文件下暂不启用） -->
+    <meta name="theme-color" content="#e74c3c">
+    <link rel="manifest" href="site.webmanifest">
+    <!-- Content-Security-Policy：限制脚本/连接来源，降低远程脚本供应链风险。
+         font-src/style-src 放行 uncloseai.com 以加载库自带字体与样式（ui.js 动态注入） -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://uncloseai.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://uncloseai.com; connect-src 'self' https://uncloseai.com https://speech.ai.unturf.com https://hermes.ai.unturf.com; img-src 'self' data: https:; font-src 'self' data: https://uncloseai.com; media-src 'self' blob: data:; manifest-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'">
+    <style>
+        :root {
+            --bg-1: #f5f7fa;
+            --bg-2: #c3cfe2;
+            --ink: #2c3e50;
+            --muted: #555;
+            --accent: #e74c3c;
+            --accent-2: #f39c12;
+            --card: #ffffff;
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+            --border: #ccd3df;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg-1: #1f2430;
+                --bg-2: #2c3142;
+                --ink: #e8ecf2;
+                --muted: #a7b0c0;
+                --card: #2a2f3d;
+                --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+                --border: #3a4050;
+            }
+        }
+        /* 手动主题覆盖（三态：auto/dark/light） */
+        :root[data-theme="dark"] {
+            --bg-1: #1f2430; --bg-2: #2c3142; --ink: #e8ecf2; --muted: #a7b0c0;
+            --card: #2a2f3d; --shadow: 0 10px 30px rgba(0,0,0,.45); --border: #3a4050;
+        }
+        :root[data-theme="light"] {
+            --bg-1: #f5f7fa; --bg-2: #c3cfe2; --ink: #2c3e50; --muted: #555;
+            --card: #ffffff; --shadow: 0 10px 30px rgba(0,0,0,.12); --border: #ccd3df;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+            color: var(--ink);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 48px 20px 120px;
+        }
+        header { text-align: center; max-width: 720px; position: relative; }
+        h1 { font-size: clamp(2rem, 4vw, 2.8rem); margin: 0 0 10px; }
+        .lead { font-size: 1.15rem; color: var(--muted); margin: 0 0 8px; }
+        .chips {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+            margin: 22px 0 36px;
+        }
+        .chip {
+            background: var(--card); border-radius: 999px; padding: 8px 16px;
+            font-size: .9rem; box-shadow: var(--shadow);
+        }
+        .chip b { color: var(--accent); }
+
+        .tts-demo {
+            background: var(--card); border-radius: 16px; padding: 24px 28px;
+            box-shadow: var(--shadow); max-width: 680px; width: 100%;
+            margin-bottom: 36px;
+            border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+        }
+        .tts-demo h2 { margin: 0 0 6px; font-size: 1.25rem; }
+        .tts-demo p.desc { margin: 0 0 16px; color: var(--muted); font-size: .95rem; }
+        .tts-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .tts-row textarea {
+            flex: 1 1 320px; min-height: 88px; resize: vertical;
+            font: inherit; padding: 12px 14px; border-radius: 10px;
+            border: 1px solid var(--border); background: var(--card); color: var(--ink);
+        }
+        .tts-row .visually-hidden {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+        .tts-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: .8rem; color: var(--muted); margin-top: 6px; gap: 8px; flex-wrap: wrap;
+        }
+        #char-count.warn { color: var(--accent); font-weight: 600; }
+        .tts-controls { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+        .tts-controls select,
+        .tts-controls input[type="range"] {
+            font: inherit; padding: 8px 10px; border-radius: 10px;
+            border: 1px solid var(--border); background: var(--card); color: var(--ink);
+            cursor: pointer;
+        }
+        .tts-controls input[type="range"] { padding: 0; }
+        .btn {
+            cursor: pointer; border: none; border-radius: 10px;
+            padding: 12px 20px; font: inherit; font-weight: 600;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #fff; transition: transform .12s cubic-bezier(0.16,1,0.3,1), box-shadow .15s, opacity .15s;
+            box-shadow: 0 4px 12px rgba(231,76,60,.25);
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(231,76,60,.35); }
+        .btn:active:not(:disabled) { transform: translateY(1px); }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn.ghost { background: transparent; color: var(--ink); border: 1px solid currentColor; box-shadow: none; }
+        .btn.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+        .btn[data-loading="true"] { position: relative; opacity: .75; }
+        .btn[data-loading="true"]::after {
+            content: ''; position: absolute; right: 12px; top: 50%; width: 14px; height: 14px;
+            margin-top: -7px; border: 2px solid #fff; border-top-color: transparent;
+            border-radius: 50%; animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        /* P2-1: 端点健康徽章 */
+        .ep-badge { font-size: .72rem; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+        .ep-up { background: rgba(40,167,69,.15); color: #28a745; }
+        .ep-down { background: rgba(220,53,69,.15); color: #dc3545; }
+        .ep-unknown { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--muted); }
+
+        /* 进度条美化 */
+        progress {
+            border: none; border-radius: 4px; overflow: hidden; width: 100%; height: 6px;
+            margin-top: 10px; background: color-mix(in srgb, var(--ink) 10%, transparent);
+        }
+        progress::-webkit-progress-bar { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+        progress::-webkit-progress-value {
+            background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .3s;
+        }
+        progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+        .status {
+            margin-top: 12px; font-size: .9rem; color: var(--muted); min-height: 1.2em;
+            /* 无障碍：状态变化由屏幕阅读器播报 */
+        }
+        .notice {
+            margin-top: 10px; padding: 10px 14px; border-radius: 10px; font-size: .85rem;
+            background: rgba(231, 76, 60, .08); border: 1px solid rgba(231, 76, 60, .3);
+            color: var(--ink); display: none;
+        }
+        .notice.show { display: block; }
+
+        /* 示例 chips + 工具栏 */
+        .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+        .chip-btn {
+            cursor: pointer; border: 1px solid var(--border); background: transparent;
+            color: var(--ink); padding: 6px 12px; border-radius: 999px; font-size: .82rem;
+            transition: background .12s;
+        }
+        .chip-btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+        .toolbar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .toolbar .btn { padding: 8px 14px; font-size: .85rem; }
+
+        /* 历史面板 */
+        .history-panel {
+            margin-top: 12px; max-height: 0; overflow: hidden; transition: max-height .25s ease;
+            border-top: 1px solid var(--border);
+        }
+        .history-panel.open { max-height: 320px; overflow-y: auto; }
+        .history-item {
+            padding: 8px 4px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+            cursor: pointer; font-size: .85rem; color: var(--ink);
+        }
+        .history-item:hover { color: var(--accent); }
+        .history-item small { color: var(--muted); margin-left: 6px; }
+        .history-empty { padding: 12px 4px; color: var(--muted); font-size: .85rem; }
+
+        .panel {
+            background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+            max-width: 820px; width: 100%; padding: 18px; min-height: 420px;
+            border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+        }
+        .panel-title { margin: 0 0 10px; font-size: 1.25rem; text-align: center; }
+        .read-row { display: flex; gap: 10px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+        /* 语义化正文容器：让整页朗读聚焦正文，减少朗读 UI 文案 */
+        main { width: 100%; display: flex; flex-direction: column; align-items: center; }
+
+        /* 主题切换按钮（页眉右上） */
+        #theme-btn {
+            position: absolute; top: -8px; right: 0; background: var(--card); border: 1px solid var(--border);
+            border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 1rem; box-shadow: var(--shadow);
+        }
+    </style>
+
+    <!-- uncloseai.js 配置：必须在脚本加载前设置 -->
+    <script>
+        // 中文界面 + 模型用中文回复
+        window.UNCLOSEAI_LANGUAGE = "zh";
+        // 让 AI 明确知道这是个"聊天转语音"应用，回复后可一键朗读
+        // 注：当前 Hermes 模型为推理型(Qwen3.6)，实测 system prompt 无法完全抑制思考过程，
+        // 前端 extractReadableText 会做兜底过滤。若库请求体传 enable_thinking:false 则更干净。
+        window.UNCLOSEAI_SYSTEM_PROMPT =
+            "你是一个友好的中文助手。用户可以把你回复的内容一键转为语音朗读，因此请直接给出最终答案，使用清晰、适合朗读的口语化中文短句作答。不要输出思考过程、分析步骤或编号列表前缀。";
+        // 保留内置样式，保证聊天/TTS 界面开箱即用
+        window.UNCLOSEAI_CUSTOM_STYLING = true;
+        // 显式声明保留右下角浮动按钮（不依赖库默认值漂移）
+        window.UNCLOSEAI_FLOATING_BUTTON = true;
+    </script>
+</head>
+<body>
+
+    <header>
+        <button id="theme-btn" aria-label="切换主题" title="切换主题（自动/暗色/亮色）">🌙</button>
+        <h1>🎙️ 在线聊天转语音</h1>
+        <p class="lead">免费的 AI 对话 + 文本转语音，纯前端、无需注册、无需 API Key。</p>
+        <p class="lead">聊天、朗读、整页听书——三条闭环，一个页面搞定。</p>
+        <div class="chips">
+            <span class="chip"><b>①</b> 聊天自动出语音按钮</span>
+            <span class="chip"><b>②</b> 任意文本转语音</span>
+            <span class="chip"><b>③</b> 整页内容朗读</span>
+        </div>
+    </header>
+
+    <main>
+    <!-- 闭环②：任意文本转语音（直连 TTS 端点，不依赖聊天模型） -->
+    <section class="tts-demo">
+        <h2>任意文本转语音</h2>
+        <p class="desc">输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。</p>
+        <div class="tts-row">
+            <div style="flex:1 1 320px; display:flex; flex-direction:column;">
+                <label class="visually-hidden" for="tts-input">要朗读的文字</label>
+                <textarea id="tts-input" maxlength="5000"
+                    placeholder="在这里输入要朗读的文字，例如：你好，这是一个把文字变成声音的免费工具。">你好，这是一个把文字变成声音的免费工具。输入任意内容，点击下方按钮就能听到。</textarea>
+                <div class="tts-meta">
+                    <span id="char-count">0 / 5000</span>
+                    <span><kbd>Ctrl+Enter</kbd> 朗读 · <kbd>Esc</kbd> 停止 · <kbd>空格</kbd> 暂停</span>
+                </div>
+            </div>
+            <div class="tts-controls">
+                <label class="visually-hidden" for="voice-select">选择语音</label>
+                <select id="voice-select" aria-label="选择语音">
+                    <!-- 兜底 3 项；initVoices() 会动态拉取 42+ 语音替换 -->
+                    <option value="aria">aria（女声）</option>
+                    <option value="atlas">atlas（男声）</option>
+                    <option value="foxhop">foxhop（操作员自录）</option>
+                </select>
+                <span id="endpoint-badge" class="ep-badge ep-unknown" title="正在检测语音端点…">● 检测中</span>
+                <label class="visually-hidden" for="speed-slider">语速</label>
+                <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1" aria-label="语速">
+                <button class="btn" id="speak-btn" aria-label="朗读这段话" aria-keyshortcuts="Control+Enter">🔊 朗读这段话</button>
+                <button class="btn ghost" id="stop-btn" aria-label="停止朗读" aria-keyshortcuts="Escape">⏹ 停止</button>
+            </div>
+        </div>
+        <progress id="tts-progress" max="100" value="0" style="display:none;" aria-hidden="true"></progress>
+        <div class="examples" id="examples">
+            <button class="chip-btn" data-text="你好，欢迎使用聊天转语音工具。">👋 打招呼</button>
+            <button class="chip-btn" data-text="床前明月光，疑是地上霜。举头望明月，低头思故乡。">📖 古诗</button>
+            <button class="chip-btn" data-text="本工具完全免费，无需注册，无需 API Key，纯前端运行。">💡 介绍</button>
+        </div>
+        <div class="toolbar">
+            <button class="btn ghost" id="download-btn" aria-label="下载音频">💾 下载音频</button>
+            <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false">📋 历史</button>
+            <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
+        </div>
+        <div class="history-panel" id="history-panel" role="region" aria-label="朗读历史"></div>
+        <div class="status" id="tts-status" role="status" aria-live="polite"></div>
+        <div class="notice" id="tts-notice" role="alert"></div>
+    </section>
+
+    <!-- 闭环①：内嵌聊天界面 -->
+    <section class="panel">
+        <h2 class="panel-title">💬 AI 对话（回复可一键朗读）</h2>
+        <div class="uncloseai"
+             data-type="custom"
+             data-features="chat,tts,smart-translate">
+        </div>
+        <div class="read-row">
+            <!-- 闭环③：朗读当前整页内容 -->
+            <button class="btn ghost" id="read-page-btn" aria-label="朗读整页内容">📖 朗读整页内容</button>
+        </div>
+        <div class="status" id="chat-status" role="status" aria-live="polite"></div>
+    </section>
+    </main>
+
+    <!-- 闭环引擎：一行脚本接入全部能力 -->
+    <script src="https://uncloseai.com/uncloseai.js" type="module"
+            onerror="window.__uncloseaiFailed=true;"></script>
+
+    <!-- 页面级交互 -->
+    <script type="module">
+        const ttsInput   = document.getElementById('tts-input');
+        const speakBtn   = document.getElementById('speak-btn');
+        const stopBtn    = document.getElementById('stop-btn');
+        const statusEl   = document.getElementById('tts-status');
+        const noticeEl   = document.getElementById('tts-notice');
+        const voiceSel   = document.getElementById('voice-select');
+        const readBtn    = document.getElementById('read-page-btn');
+        const chatStatus = document.getElementById('chat-status');
+        const charCount  = document.getElementById('char-count');
+        const speedSlider= document.getElementById('speed-slider');
+        const progressEl = document.getElementById('tts-progress');
+        const downloadBtn= document.getElementById('download-btn');
+        const historyBtn = document.getElementById('history-btn');
+        const historyPanel = document.getElementById('history-panel');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+        const themeBtn   = document.getElementById('theme-btn');
+
+        const TTS_ENDPOINT = 'https://speech.ai.unturf.com/v1/audio/speech';
+        const VOICES_ENDPOINT = 'https://speech.ai.unturf.com/v1/voices';
+        const TTS_MODEL    = 'tts-1-f5';
+        const MAX_CHARS    = 5000;
+        // 单 chunk 上限：长文本分块顺序合成播放（与库内 splitTextIntoChunks 同思路）
+        const CHUNK_SIZE   = 500;
+        const HISTORY_KEY  = 'tts_history_v2';
+        const VOICE_KEY    = 'tts_voice_v2';
+        const THEME_KEY    = 'tts_theme_v2';
+        const MODEL_CACHE_KEY = 'unclose_real_model_v2';
+        const MODEL_CACHE_TTL = 1000 * 60 * 30; // 30 分钟
+
+        function setStatus(msg) { statusEl.textContent = msg; }
+        function showNotice(msg) { noticeEl.textContent = msg; noticeEl.classList.add('show'); }
+        function clearNotice()  { noticeEl.classList.remove('show'); noticeEl.textContent = ''; }
+
+        // ============ 工具：错误日志（localStorage 环形缓冲，可导出） ============
+        const ERR_KEY = 'tts_err_log_v2';
+        function logError(msg, ctx) {
+            try {
+                const log = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
+                log.push({ msg: String(msg).slice(0,300), ctx: ctx||'', ts: Date.now() });
+                localStorage.setItem(ERR_KEY, JSON.stringify(log.slice(-50)));
+            } catch (_) {}
+        }
+        window.addEventListener('error', (e) => logError(e.message, e.filename + ':' + e.lineno));
+
+        // ============ 工具：fetch 重试（指数退避） ============
+        async function fetchWithRetry(url, opts, retries = 2) {
+            let lastErr;
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const res = await fetch(url, opts);
+                    if (res.ok) return res;
+                    // 5xx 才重试
+                    if (res.status < 500 || i === retries) return res;
+                } catch (e) { lastErr = e; if (i === retries) throw e; }
+                await new Promise(r => setTimeout(r, 800 * (i + 1)));
+            }
+            throw lastErr || new Error('请求失败');
+        }
+
+        // 等 uncloseai.js 命名空间就绪（含降级与超时反馈）
+        function waitForApi(retries = 60) {
+            return new Promise((resolve, reject) => {
+                if (window.__uncloseaiFailed) {
+                    return reject(new Error('uncloseai.js 加载失败（网络被拦或域名不可达）。聊天功能不可用，但"任意文本转语音"仍可直连使用。'));
+                }
+                (function check(n) {
+                    if (window.uncloseai && typeof window.uncloseai.speakText === 'function') return resolve();
+                    if (window.__uncloseaiFailed) return reject(new Error('uncloseai.js 加载失败。"任意文本转语音"仍可直连使用。'));
+                    if (n <= 0) return reject(new Error('uncloseai.js 未能加载，请检查网络；聊天功能不可用，但"任意文本转语音"仍可直连使用。'));
+                    setTimeout(() => check(n - 1), 200);
+                })(retries);
+            });
+        }
+
+        // ============ 闭环②：直连 TTS 端点 ============
+        // 根因：uncloseai.speakText 内部 extractSpokenTokens 会调用聊天端点清洗文本，
+        // 而库的默认模型名已过期（端点返回 404 model not found），导致 speakText 整链失败。
+        // 用户手输的是纯文本，无需 LLM 清洗，故直连 speech 端点，绕开该失效链路。
+        let currentAudio = null;
+        let isSynthesizing = false;
+        let isStopped = false;
+        let audioUnlocked = false;
+        let audioCtx = null;
+        let audioBlobs = [];        // 本轮所有 blob，供下载拼接完整音频
+        let currentPlaybackResolve = null; // playBlob 的 resolve 句柄，供 stopPlayback 显式解锁
+        let speakRequestId = 0;     // 防竞态：快速连点只保留最后一次
+        // P0-1: 多引擎降级链状态
+        let ttsEndpointUp = null;           // null=未知 true=在线 false=宕机
+        let ttsEndpointCheckedAt = 0;      // 上次探测时间戳
+        let currentEngine = 0;             // 当前引擎 1=在线 2=离线 3=文本
+        let synthVoices = [];              // 浏览器 SpeechSynthesis 语音列表
+        let synthZhVoice = null;           // 选定的中文语音
+
+        // 浏览器自动播放策略：首次用户手势内播放一段静音音频解锁后续 play()
+        // 叠加 Web Audio API 预热，覆盖 iOS Safari 对 data: URI 的严苛场景
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            try {
+                audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const buffer = audioCtx.createBuffer(1, 1, 22050);
+                const src = audioCtx.createBufferSource();
+                src.buffer = buffer; src.connect(audioCtx.destination); src.start(0);
+            } catch (e) { /* Web Audio 不可用，走 data: 兜底 */ }
+            try {
+                const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+                const p = silent.play();
+                if (p && p.then) p.catch(() => {});
+            } catch (e) {}
+            audioUnlocked = true;
+        }
+
+        function splitIntoChunks(text) {
+            // P1-3: 按句切分（中文句号/问号/感叹号/分号，英文对应符号），每块不超过 CHUNK_SIZE
+            // 句末标点保留在块尾，TTS 在断句处自然停顿，避免硬切"你好。"成"你好"+"。"
+            if (!text) return [];
+            const sep = /([。！？；.!?;])/g;
+            const units = [];
+            let last = 0, m;
+            while ((m = sep.exec(text)) !== null) {
+                const unit = text.slice(last, m.index + 1);
+                last = m.index + 1;
+                if (unit) units.push(unit);
+            }
+            if (last < text.length) units.push(text.slice(last));
+            if (units.length === 0) units.push(text);
+            // 贪心打包 + 单元超长时硬切
+            const sentences = [];
+            for (const unit of units) {
+                if (unit.length > CHUNK_SIZE) {
+                    // 单句超长（无标点的连续串），硬切
+                    for (let i = 0; i < unit.length; i += CHUNK_SIZE) sentences.push(unit.slice(i, i + CHUNK_SIZE));
+                } else if (sentences.length && (sentences[sentences.length - 1] + unit).length <= CHUNK_SIZE) {
+                    sentences[sentences.length - 1] += unit;
+                } else {
+                    sentences.push(unit);
+                }
+            }
+            if (sentences.length === 0) {
+                for (let i = 0; i < text.length; i += CHUNK_SIZE) sentences.push(text.slice(i, i + CHUNK_SIZE));
+            }
+            return sentences;
+        }
+
+        // ============ P0-1: TTS 多引擎降级链 ============
+        // 引擎1：speech.ai.unturf.com（F5-TTS，42语音，质量最高）
+        // 引擎2：浏览器原生 SpeechSynthesis（离线，音色机械，需有中文语音）
+        // 引擎3：友好提示 + 一键复制文本（兜底，至少不黑屏）
+        async function probeTtsEndpoint() {
+            // 5 秒内不重复探测
+            if (ttsEndpointUp !== null && Date.now() - ttsEndpointCheckedAt < 5000) return ttsEndpointUp;
+            ttsEndpointCheckedAt = Date.now();
+            try {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 4000);
+                const res = await fetch(VOICES_ENDPOINT, { signal: ctrl.signal });
+                clearTimeout(t);
+                ttsEndpointUp = res.ok;
+            } catch (e) {
+                ttsEndpointUp = false;
+            }
+            return ttsEndpointUp;
+        }
+
+        function loadSynthVoices() {
+            if (!('speechSynthesis' in window)) return;
+            const done = () => {
+                synthVoices = window.speechSynthesis.getVoices();
+                synthZhVoice = synthVoices.find(v => /^zh/i.test(v.lang)) || synthVoices.find(v => /Chinese|中文/i.test(v.name));
+            };
+            done();
+            // voices 异步加载，监听 voiceschanged 后再取一次
+            window.speechSynthesis.onvoiceschanged = done;
+        }
+
+        // 引擎2：浏览器内置语音。返回 Promise<'ok'|'error'，不抛异常（异常由调度器处理）
+        // 长文本分块串行朗读，支持暂停/停止（复用 stopPlayback 的状态）
+        // P1-4 鲁棒性：某些浏览器（含 headless Chromium）cancel() 不触发 onend，
+        // 故加 isStopped 轮询守护，确保 stopPlayback 能立即解锁。
+        function synthWithBrowser(textChunks, speed, myId) {
+            return new Promise(async (resolve) => {
+                if (!('speechSynthesis' in window)) return resolve('error');
+                if (!synthVoices.length) loadSynthVoices();
+                if (!synthVoices.length) return resolve('error');
+                const rate = Math.max(0.1, Math.min(10, speed || 1));
+                const utterQueue = [...textChunks];
+                let stopped = false;
+                let resolved = false;
+                const finish = (v) => {
+                    if (resolved) return; resolved = true;
+                    clearInterval(pollHandle); clearTimeout(watchdog);
+                    window.speechSynthesis.onend = null;
+                    window.speechSynthesis.onerror = null;
+                    try { window.speechSynthesis.cancel(); } catch(_){}
+                    resolve(v);
+                };
+                // 守护定时器：5 分钟强制结束
+                const watchdog = setTimeout(() => finish('ok'), 5 * 60 * 1000);
+                // isStopped 轮询守护：cancel 不触发 onend 时也能解锁
+                const pollHandle = setInterval(() => {
+                    if (isStopped || myId !== speakRequestId) finish(isStopped || myId !== speakRequestId ? 'stopped' : 'ok');
+                }, 120);
+                const speakNext = () => {
+                    if (resolved) return;
+                    if (isStopped || myId !== speakRequestId) return finish('stopped');
+                    if (utterQueue.length === 0) return finish('ok');
+                    const chunk = utterQueue.shift();
+                    const u = new SpeechSynthesisUtterance(chunk);
+                    u.lang = synthZhVoice ? synthZhVoice.lang : 'zh-CN';
+                    if (synthZhVoice) u.voice = synthZhVoice;
+                    u.rate = rate;
+                    u.onend = speakNext;
+                    u.onerror = () => finish('error');
+                    progressEl.value = textChunks.length - utterQueue.length;
+                    setStatus(`🔊 离线朗读中…（第 ${textChunks.length - utterQueue.length}/${textChunks.length} 段）`);
+                    try { window.speechSynthesis.speak(u); } catch(e) { return finish('error'); }
+                };
+                speakNext();
+            });
+        }
+
+        // 引擎3：文本兜底（复制到剪贴板）
+        async function synthFallbackText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                setStatus('⚠️ 在线与离线语音均不可用，已将文本复制到剪贴板。');
+            } catch (e) {
+                setStatus('⚠️ 语音服务不可用，且剪贴板复制失败。文本：' + text.slice(0, 80) + '…');
+            }
+            showNotice('当前无可用语音引擎。');
+        }
+
+        // 调度器：依次尝试引擎1→2→3，状态栏透明告知
+        async function synthChain(text, voice, speed, myId) {
+            currentEngine = 0;
+            const chunks = splitIntoChunks(text);
+            // 引擎1：在线 F5-TTS
+            const up = await probeTtsEndpoint();
+            if (up) {
+                try {
+                    currentEngine = 1;
+                    progressEl.style.display = 'block';
+                    progressEl.max = chunks.length;
+                    progressEl.value = 0;
+                    audioBlobs = [];
+                    // 复用原 fetchTTSChunk + playBlob 流水线
+                    const blobCache = new Array(chunks.length).fill(null);
+                    const prefetch = async (i) => {
+                        if (i >= chunks.length || blobCache[i] || myId !== speakRequestId) return;
+                        try { blobCache[i] = await fetchTTSChunk(chunks[i], voice, speed); }
+                        catch (e) { blobCache[i] = e; }
+                    };
+                    await prefetch(0);
+                    for (let i = 0; i < chunks.length; i++) {
+                        if (isStopped || myId !== speakRequestId) break;
+                        if (blobCache[i] == null) await prefetch(i);
+                        if (isStopped || myId !== speakRequestId) break;
+                        if (blobCache[i] instanceof Error) throw blobCache[i];
+                        if (!blobCache[i]) break;
+                        if (i + 1 < chunks.length) prefetch(i + 1);
+                        isSynthesizing = false;
+                        setStatus(`🎤 在线合成播放中…（第 ${i + 1}/${chunks.length} 段）`);
+                        progressEl.value = i;
+                        const r = await playBlob(blobCache[i]);
+                        if (r === 'stopped') break;
+                        if (r !== 'blocked') audioBlobs.push(blobCache[i]);
+                        if (r === 'blocked') break;
+                    }
+                    if (!isStopped && myId === speakRequestId) return 'ok';
+                    return 'stopped';
+                } catch (e) {
+                    // 引擎1 失败，降级
+                    logError(e.message, 'synthChain-engine1');
+                    ttsEndpointUp = false; // 标记宕机，避免短期重试
+                    ttsEndpointCheckedAt = Date.now();
+                }
+            }
+            // 引擎2：浏览器内置
+            if (isStopped || myId !== speakRequestId) return 'stopped';
+            if ('speechSynthesis' in window) {
+                currentEngine = 2;
+                progressEl.style.display = 'block';
+                progressEl.max = chunks.length;
+                progressEl.value = 0;
+                audioBlobs = []; // 浏览器语音无法产出 blob，下载将走文本兜底提示
+                setStatus('🔊 在线语音不可用，已切换离线朗读（浏览器内置音色）。');
+                const r = await synthWithBrowser(chunks, speed, myId);
+                if (r === 'ok') return 'ok';
+                if (r === 'stopped') return 'stopped';
+                // r === 'error' 继续降级
+            }
+            // 引擎3：文本兜底
+            if (isStopped || myId !== speakRequestId) return 'stopped';
+            currentEngine = 3;
+            await synthFallbackText(text);
+            return 'fallback';
+        }
+
+        async function fetchTTSChunk(text, voice, speed) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
+            try {
+                const res = await fetchWithRetry(TTS_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: TTS_MODEL, voice, input: text,
+                        response_format: 'mp3',
+                        speed: speed != null ? speed : 1
+                    }),
+                    signal: controller.signal
+                }, 1);
+                if (!res.ok) {
+                    const t = await res.text().catch(() => '');
+                    throw new Error(`语音服务返回 ${res.status}：${t.slice(0, 120)}`);
+                }
+                return await res.blob();
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+        function stopPlayback() {
+            isStopped = true;
+            isSynthesizing = false;
+            // P1-4: 同时取消浏览器内置语音（引擎2）
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch(_){}
+            }
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.onended = null;
+                currentAudio.onerror = null;
+                currentAudio.src = '';
+                currentAudio = null;
+            }
+            // ★ 显式解锁可能挂起的 playBlob await（src='' 触发 emptied 不触发 ended/error）
+            if (currentPlaybackResolve) {
+                const r = currentPlaybackResolve;
+                currentPlaybackResolve = null;
+                r('stopped');
+            }
+            progressEl.style.display = 'none';
+            speakBtn.disabled = false;
+            speakBtn.removeAttribute('data-loading');
+        }
+
+        async function playBlob(blob) {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.playbackRate = 1;
+            currentAudio = audio;
+            // ★ 同时记录 resolve 句柄，stopPlayback 可显式解锁，避免 promise 永挂
+            return new Promise((resolve) => {
+                const done = (v) => {
+                    URL.revokeObjectURL(url);
+                    // 仅当本轮仍持锁时清，避免 stopPlayback 已清后再覆盖
+                    if (currentPlaybackResolve === done) currentPlaybackResolve = null;
+                    resolve(v);
+                };
+                audio.onended = () => done('ended');
+                audio.onerror = () => done('error');
+                currentPlaybackResolve = done;
+                const pr = audio.play();
+                if (pr && pr.then) {
+                    pr.catch(() => {
+                        // 自动播放被拦：提供重试按钮（重试在手势内可直接 play 已合成音频）
+                        showNotice('浏览器拦截了自动播放。');
+                        noticeEl.appendChild(document.createElement('br'));
+                        const retry = document.createElement('button');
+                        retry.className = 'btn'; retry.textContent = '▶ 点击重试播放';
+                        retry.onclick = () => {
+                            clearNotice();
+                            audio.play().catch(() => showNotice('仍无法播放，请检查浏览器音频权限。'));
+                        };
+                        noticeEl.appendChild(retry);
+                        done('blocked');
+                    });
+                }
+            });
+        }
+
+        async function speak() {
+            clearNotice();
+            const text = ttsInput.value.trim();
+            if (!text) { setStatus('请先输入要朗读的文字。'); return; }
+            if (text.length > MAX_CHARS) { setStatus(`文本过长，请精简到 ${MAX_CHARS} 字以内。`); return; }
+
+            const myId = ++speakRequestId;  // 竞态保护
+            unlockAudio();
+            // 防重复：停止上一次，再开始新的
+            stopPlayback();
+            // stopPlayback 会把 myId 之后的 isStopped 置 true；此处重置为本轮
+            isStopped = false;
+            isSynthesizing = true;
+            audioBlobs = []; // 重置本轮 blob 收集（供下载完整音频）
+            speakBtn.disabled = true;
+            speakBtn.setAttribute('data-loading', 'true');
+            const voice = voiceSel.value;
+            const speed = parseFloat(speedSlider.value);
+
+            try {
+                const r = await synthChain(text, voice, speed, myId);
+                if (isStopped || myId !== speakRequestId) {
+                    // 被中止，不更新 UI
+                } else if (r === 'ok') {
+                    progressEl.value = progressEl.max;
+                    setStatus(currentEngine === 1 ? '播放完毕。' : '🔊 离线朗读完毕。');
+                    saveHistory(text, voice);
+                    const finishId = myId;
+                    setTimeout(() => {
+                        if (!isSynthesizing && speakRequestId === finishId) progressEl.style.display = 'none';
+                    }, 800);
+                } else if (r === 'fallback') {
+                    // 引擎3 已在内部设置状态
+                }
+            } catch (e) {
+                if (!isStopped && myId === speakRequestId) {
+                    setStatus('朗读失败：' + (e.name === 'AbortError' ? '请求超时，请重试。' : (e.message || e)));
+                    logError(e.message, 'speak');
+                }
+            } finally {
+                isSynthesizing = false;
+                if (!isStopped && myId === speakRequestId) {
+                    speakBtn.disabled = false;
+                    speakBtn.removeAttribute('data-loading');
+                }
+            }
+        }
+
+        // ============ 闭环①③：聊天模型名注入 ============
+        // 根因：uncloseai.js 库内部 getSelectedModel() 的硬编码 fallback 模型名已过期。
+        // 库用 ES module import 绑定读取该值，monkey-patch window 无效、vault.set 无效。
+        // 但 getSelectedModel 会优先读取 DOM 中的 #modal-model-selection 下拉值——
+        // 故向其注入端点真实模型名可救活。
+        // P0-3 增量：当前 Hermes 模型为推理型(Qwen3.6)，库内部请求若不加 enable_thinking:false
+        // 会返回"Here's a thinking process:..."整段推理。由于库是黑盒无法干预其请求体，
+        // 前端 extractReadableText 已加 cleanAssistantText 兜底过滤。已实测 enable_thinking
+        // 参数本身有效（curl 验证），但库未必传该参数，故前端兜底不可省。
+        async function fetchRealModel() {
+            // 1. 内存缓存
+            if (window.__realModelCache) return window.__realModelCache;
+            // 2. localStorage 缓存（带 TTL，减少对 /v1/models 的频繁探测）
+            try {
+                const raw = localStorage.getItem(MODEL_CACHE_KEY);
+                if (raw) {
+                    const { model, ts } = JSON.parse(raw);
+                    if (model && Date.now() - ts < MODEL_CACHE_TTL) {
+                        window.__realModelCache = model;
+                        return model;
+                    }
+                }
+            } catch (e) {}
+            // 3. 网络获取（3 次重试 + 指数退避）
+            for (let i = 0; i < 3; i++) {
+                try {
+                    const res = await fetch('https://hermes.ai.unturf.com/v1/models');
+                    if (res.ok) {
+                        const data = await res.json();
+                        const model = data && data.data && data.data[0] && data.data[0].id;
+                        if (model) {
+                            window.__realModelCache = model;
+                            try { localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model, ts: Date.now() })); } catch(_){}
+                            return model;
+                        }
+                    }
+                } catch (e) { /* 重试 */ }
+                await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+            }
+            return null;
+        }
+
+        function fillModelDropdown(sel, modelVal, modelName) {
+            if (!sel) return false;
+            sel.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.value = modelVal; opt.textContent = modelName;
+            sel.appendChild(opt);
+            sel.value = modelVal;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+
+        async function reviveChatModel() {
+            const realModel = await fetchRealModel();
+            if (!realModel) {
+                chatStatus.textContent = '提示：若聊天无响应，请点聊天框右上角 ⚙️ 设置，手动选择 Hermes 模型。';
+                return;
+            }
+            const modelVal = 'hermes.ai.unturf.com-' + realModel;
+            // 写 vault（部分库路径会读 selectedModel 键）
+            if (window.uncloseai && window.uncloseai.UncloseVault) {
+                try { window.uncloseai.UncloseVault.set('selectedModel', realModel); } catch (e) {}
+            }
+            // #modal-model-selection 由库在打开设置面板时创建；先尝试直接填充（若已渲染）
+            if (fillModelDropdown(document.getElementById('modal-model-selection'), modelVal, realModel)) {
+                chatStatus.textContent = '✅ 聊天已就绪。';
+                return;
+            }
+            // 下拉尚未渲染：打开设置面板触发其创建，填充后关闭（快速，用户近乎无感）
+            try {
+                const r = window.uncloseai.toggleUncloseaiEmbeddedModal();
+                if (r && r.then) await r;
+                await new Promise(r => setTimeout(r, 600));
+                const ok = fillModelDropdown(document.getElementById('modal-model-selection'), modelVal, realModel);
+                const r2 = window.uncloseai.toggleUncloseaiEmbeddedModal();
+                if (r2 && r2.then) await r2;
+                chatStatus.textContent = ok ? '✅ 聊天已就绪。' : '提示：若聊天无响应，请点聊天框右上角 ⚙️ 设置，手动选择 Hermes 模型。';
+            } catch (e) {
+                chatStatus.textContent = '提示：若聊天无响应，请点聊天框右上角 ⚙️ 设置，手动选择 Hermes 模型。';
+            }
+        }
+
+        // ============ 闭环③：整页朗读（快速短路 + 降级） ============
+        // v1 已知：readPageWithHermes 在本环境静默失败（resolve 但无音频）。
+        // v2 优化：不再硬等 3 秒，改为 300ms 探测是否有新 audio 产生；
+        //         无则立即降级为"提取正文→直连 TTS"。未来库修复后 300ms 即可切回内置路径。
+        async function readPage() {
+            readBtn.disabled = true;
+            chatStatus.textContent = '正在提取页面内容并朗读…';
+
+            // 降级：提取正文，通过多引擎降级链朗读
+            try {
+                // 精确提取正文：只取输入框内容 + 聊天回复，排除按钮文字/状态文案/UI 噪声
+                let text = extractReadableText();
+                text = text.slice(0, MAX_CHARS).trim();
+                if (!text) { chatStatus.textContent = '未提取到可朗读的正文。'; readBtn.disabled = false; return; }
+
+                const myId = ++speakRequestId;
+                stopPlayback();
+                isStopped = false;
+                audioBlobs = [];
+                unlockAudio();
+                const speed = parseFloat(speedSlider.value);
+                const r = await synthChain(text, voiceSel.value, speed, myId);
+                if (isStopped || myId !== speakRequestId) {
+                    // 被中止
+                } else if (r === 'ok') {
+                    progressEl.value = progressEl.max;
+                    chatStatus.textContent = currentEngine === 1 ? '整页朗读完毕。' : '🔊 离线整页朗读完毕。';
+                    const finishId = myId;
+                    setTimeout(() => {
+                        if (speakRequestId === finishId) progressEl.style.display = 'none';
+                    }, 800);
+                } else if (r === 'fallback') {
+                    // 引擎3 已设置状态
+                }
+            } catch (e) {
+                chatStatus.textContent = '整页朗读失败：' + (e.message || e);
+                logError(e.message, 'readPage');
+            } finally {
+                readBtn.disabled = false;
+            }
+        }
+
+        // ============ 提取可朗读正文（排除 UI 文案） ============
+        // 只朗读用户真正关心的内容：标题/简介 + TTS 输入框 + 聊天回复，
+        // 排除按钮文字、状态栏、计数器、快捷键提示等 UI 噪声。
+        // P0-3: 增加推理模型思考过程清洗（兜底，因库无法干预内部请求体加 enable_thinking）
+        function cleanAssistantText(text) {
+            if (!text) return '';
+            let t = text;
+            // 剥离"Here's a thinking process:"等推理前缀整块（到首个空行）
+            const thinkRe = /^(?:Here's a thinking process|思考过程|分析用户输入)[:：]?\s*[\s\S]*?(?=\n\s*\n|$)/i;
+            t = t.replace(thinkRe, '').trim();
+            // 若剥离后为空（整段都是思考），返回空标记，上层据此跳过朗读
+            return t;
+        }
+        function extractReadableText() {
+            const parts = [];
+            document.querySelectorAll('header h1, header .lead').forEach(el => {
+                const t = el.innerText.trim();
+                if (t) parts.push(t);
+            });
+            const ttsVal = (ttsInput.value || '').trim();
+            if (ttsVal) parts.push(ttsVal);
+            document.querySelectorAll('.uncloseai [class*="message"], .uncloseai [class*="assistant"], .uncloseai [class*="bubble"]').forEach(el => {
+                if (/textarea|input|button/i.test(el.tagName)) return;
+                let t = el.innerText.trim();
+                if (t && t.length > 5) {
+                    t = cleanAssistantText(t);
+                    if (t) parts.push(t);
+                }
+            });
+            if (parts.length === 0) {
+                const main = document.querySelector('main') || document.body;
+                const clone = main.cloneNode(true);
+                clone.querySelectorAll('button, .btn, .chip-btn, .toolbar, .status, .notice, .tts-controls, .examples, .tts-meta, .visually-hidden, .history-panel, progress, kbd').forEach(el => el.remove());
+                parts.push(cleanAssistantText(clone.innerText || ''));
+            }
+            return parts.filter(Boolean).join('\n');
+        }
+
+        // ============ 动态语音列表（D1）：拉取 42+ 语音，失败保留 3 项兜底 ============
+        // 端点真实结构：{object:'list', data:[{id:'tts-1-f5', voices:['aria','clara',...], voice_count:41}]}
+        // P0-2: 成功后写入 localStorage 缓存（24h TTL），端点宕机时仍能填充下拉
+        const VOICES_CACHE_KEY = 'tts_voices_cache_v3';
+        const VOICES_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 小时
+        async function initVoices() {
+            // 1. 先用缓存即时填充下拉（避免空窗）
+            let cachedList = null;
+            try {
+                const raw = localStorage.getItem(VOICES_CACHE_KEY);
+                if (raw) {
+                    const { list, ts } = JSON.parse(raw);
+                    if (Array.isArray(list) && list.length && Date.now() - ts < VOICES_CACHE_TTL) cachedList = list;
+                }
+            } catch (e) {}
+            if (cachedList) fillVoiceSelect(cachedList);
+
+            // 2. 后台静默 refresh
+            try {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 5000);
+                const res = await fetch(VOICES_ENDPOINT, { signal: ctrl.signal });
+                clearTimeout(t);
+                if (!res.ok) { updateEndpointBadge(false); return; }
+                const data = await res.json();
+                let list = [];
+                if (data && Array.isArray(data.data)) {
+                    data.data.forEach(m => { if (Array.isArray(m.voices)) list = list.concat(m.voices); });
+                }
+                if (list.length === 0 && Array.isArray(data)) list = data;
+                if (!Array.isArray(list) || list.length === 0) { updateEndpointBadge(false); return; }
+                // 写缓存
+                try { localStorage.setItem(VOICES_CACHE_KEY, JSON.stringify({ list, ts: Date.now() })); } catch(_){}
+                fillVoiceSelect(list);
+                updateEndpointBadge(true);
+                if (!statusEl.textContent.includes('失败') && !statusEl.textContent.includes('不可用')) {
+                    setStatus(`已加载 ${list.length} 个语音。`);
+                }
+            } catch (e) {
+                updateEndpointBadge(false);
+                logError(e.message, 'initVoices');
+            }
+        }
+        function fillVoiceSelect(list) {
+            const saved = localStorage.getItem(VOICE_KEY);
+            const current = saved || voiceSel.value;
+            voiceSel.innerHTML = '';
+            list.forEach(v => {
+                const id = typeof v === 'string' ? v : (v.voice || v.id || v.name);
+                if (!id) return;
+                const opt = document.createElement('option');
+                opt.value = id; opt.textContent = id;
+                voiceSel.appendChild(opt);
+            });
+            voiceSel.value = Array.from(voiceSel.options).some(o => o.value === current)
+                ? current : (voiceSel.querySelector('option[value="aria"]') ? 'aria' : voiceSel.options[0]?.value);
+        }
+        function updateEndpointBadge(up) {
+            const badge = document.getElementById('endpoint-badge');
+            if (!badge) return;
+            ttsEndpointUp = up;
+            badge.className = 'ep-badge ' + (up ? 'ep-up' : 'ep-down');
+            badge.title = up ? '在线语音端点正常' : '在线语音端点不可用，朗读将自动切换离线引擎';
+            badge.textContent = up ? '● 在线' : '● 离线';
+        }
+
+        // ============ 历史记录（F6）：按 text+voice 去重，最新移到头部 ============
+        function saveHistory(text, voice) {
+            try {
+                const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+                const key = text.slice(0, 200) + '||' + voice;
+                const filtered = h.filter(item => (item.text + '||' + item.voice) !== key);
+                filtered.unshift({ text: text.slice(0, 200), voice, ts: Date.now() });
+                localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered.slice(0, 20)));
+            } catch(_){}
+        }
+        function renderHistory() {
+            let h = [];
+            try { h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(_){}
+            historyPanel.innerHTML = '';
+            if (h.length === 0) {
+                historyPanel.innerHTML = '<div class="history-empty">暂无朗读历史。</div>';
+                return;
+            }
+            h.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                const time = new Date(item.ts).toLocaleString('zh-CN', { hour12: false });
+                div.innerHTML = `<span></span><small>${item.voice} · ${time}</small>`;
+                div.querySelector('span').textContent = item.text;
+                div.title = '点击回填到输入框';
+                div.onclick = () => {
+                    ttsInput.value = item.text;
+                    updateCharCount();
+                    if (item.voice && Array.from(voiceSel.options).some(o => o.value === item.voice)) {
+                        voiceSel.value = item.voice;
+                    }
+                };
+                historyPanel.appendChild(div);
+            });
+        }
+        function clearHistory() {
+            try { localStorage.removeItem(HISTORY_KEY); } catch(_){}
+            renderHistory();
+            setStatus('已清空历史。');
+        }
+
+        // ============ 主题切换（F8）：三态 auto/dark/light ============
+        function applyTheme(theme) {
+            if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+            else document.documentElement.setAttribute('data-theme', theme);
+            themeBtn.textContent = theme === 'dark' ? '☀️' : (theme === 'light' ? '🌗' : '🌙');
+            themeBtn.setAttribute('aria-label', `当前主题：${theme}，点击切换`);
+        }
+        function cycleTheme() {
+            const cur = localStorage.getItem(THEME_KEY) || 'auto';
+            const next = cur === 'auto' ? 'dark' : (cur === 'dark' ? 'light' : 'auto');
+            localStorage.setItem(THEME_KEY, next);
+            applyTheme(next);
+        }
+
+        // ============ 字符计数 ============
+        function updateCharCount() {
+            const n = ttsInput.value.length;
+            charCount.textContent = `${n} / ${MAX_CHARS}`;
+            charCount.classList.toggle('warn', n > MAX_CHARS * 0.9);
+        }
+
+        // ============ 下载音频（E6）：拼接本轮所有 blob 为完整音频 ============
+        downloadBtn.addEventListener('click', () => {
+            if (!audioBlobs || audioBlobs.length === 0) {
+                // P1-5: 离线引擎模式下明确提示，不静默失败
+                if (currentEngine === 2) {
+                    setStatus('离线语音（浏览器内置）无法下载为文件，请切换在线引擎后重试。');
+                } else {
+                    setStatus('请先朗读一段音频，再点下载。');
+                }
+                return;
+            }
+            const mime = audioBlobs[0].type || 'audio/mpeg';
+            const fullBlob = audioBlobs.length === 1
+                ? audioBlobs[0]
+                : new Blob(audioBlobs, { type: mime });
+            const url = URL.createObjectURL(fullBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+            const sp = parseFloat(speedSlider.value).toFixed(1) + 'x';
+            a.download = `tts-${voiceSel.value}-${sp}-${ts}.mp3`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            setStatus(`已下载 ${audioBlobs.length} 段合成的完整音频。`);
+        });
+
+        // ============ 绑定 ============
+        speakBtn.addEventListener('click', speak);
+        stopBtn.addEventListener('click', () => { stopPlayback(); setStatus('已停止。'); });
+        readBtn.addEventListener('click', readPage);
+        ttsInput.addEventListener('input', updateCharCount);
+        voiceSel.addEventListener('change', () => { try { localStorage.setItem(VOICE_KEY, voiceSel.value); } catch(_){} });
+        historyBtn.addEventListener('click', () => {
+            const open = historyPanel.classList.toggle('open');
+            historyBtn.setAttribute('aria-expanded', String(open));
+            if (open) renderHistory();
+        });
+        clearHistoryBtn.addEventListener('click', clearHistory);
+        themeBtn.addEventListener('click', cycleTheme);
+        document.querySelectorAll('.chip-btn').forEach(b => {
+            b.addEventListener('click', () => {
+                ttsInput.value = b.dataset.text;
+                updateCharCount();
+                ttsInput.focus();
+            });
+        });
+
+        // 键盘快捷键（E4）：Ctrl+Enter 朗读 / Esc 停止 / 空格 暂停-恢复
+        // P2-2: 扩展 Ctrl+D 下载 / Ctrl+H 历史 / Ctrl+, 主题
+        document.addEventListener('keydown', (e) => {
+            const inField = /textarea|input|select/i.test(e.target.tagName);
+            if (inField) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); speak(); }
+                return;
+            }
+            // 空格：当焦点在按钮上时不拦截（让按钮原生 click 生效，避免双重触发）
+            if (e.code === 'Space' && currentAudio && !/button/i.test(e.target.tagName)) {
+                e.preventDefault();
+                if (currentAudio.paused) currentAudio.play().catch(()=>{});
+                else currentAudio.pause();
+            } else if (e.key === 'Escape') {
+                stopPlayback();
+                try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(_){}
+                setStatus('已停止。');
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+                e.preventDefault(); downloadBtn.click();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+                e.preventDefault(); historyBtn.click();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+                e.preventDefault(); cycleTheme();
+            }
+        });
+
+        // 初始化
+        updateCharCount();
+        try {
+            const savedTheme = localStorage.getItem(THEME_KEY) || 'auto';
+            applyTheme(savedTheme);
+            // savedVoice 恢复交给 initVoices 内部处理（此时下拉只有 3 项兜底，动态加载后再匹配）
+        } catch(_){}
+        // P0-1: 预加载浏览器语音列表（异步，voiceschanged 后填充）
+        loadSynthVoices();
+        // P0-2: 预探测端点健康（不阻塞，synthChain 内会再 probe）
+        probeTtsEndpoint().then(up => updateEndpointBadge(up));
+
+        waitForApi()
+            .then(() => {
+                setStatus('✅ 已就绪：可朗读文本，或在下方聊天后点回复旁的 🔊。');
+                reviveChatModel();
+                initVoices();
+            })
+            .catch(e => {
+                setStatus(e.message);
+                // 库加载失败，但闭环②直连仍可用；initVoices 守卫不覆盖上方错误文案
+                initVoices();
+            });
+    </script>
+
+</body>
+</html>

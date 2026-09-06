@@ -1,0 +1,87 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+所有语言
+书
+解开 ai。
+反向检索增强生成
+
+汽车
+光
+黑暗的
+面向小型语言模型的客户端上下文注入
+实时 DOM 提取如何让 8B 模型发挥出超乎寻常的性能。
+
+russell@unturf、cthegray、TimeHexOn、foxhop
+
+抽象的
+传统的检索增强生成（RAG）需要服务器端流水线：将文档分块，将其嵌入向量，存储在数据库中，并在查询时通过相似性搜索进行检索。这种架构需要基础设施，存在索引延迟，并且需要维护嵌入模型和向量存储。
+
+反向检索增强生成（反向 RAG） 完全颠覆了这一过程。它不再由服务器获取文档来增强提示信息，而是由客户端从用户当前浏览的页面中提取实时内容，并将其直接注入到对话上下文中。数据直接送达模型。无需向量数据库，无需词嵌入，无需索引管道，也无需服务器端检索。
+
+uncloseai.js 以 AGPL-3.0 协议实现此技术 uncloseai.js 作为模块化应用程序的入口点，可为任何网页添加机器学习聊天界面。通过将用户访问页面的完整、最新内容输入模型，小型 80 亿参数模型能够针对特定页面问题生成媲美大型模型的答案。
+
+
+
+引用
+russell@unturf, cthegray, TimeHexOn, foxhop. "Reverse Retrieval Augmented
+Generation: Client-Side Context Injection for Small Language Models."
+uncloseai.com, 2026. https://uncloseai.com/reverse-retrieval-augmented-generations-rag.html
+执照
+AGPL-3.0-only
+
+PERMACOMPUTER PREAMBLE, NO WARRANTY
+
+This is free software for the public good of a permacomputer hosted at
+permacomputer.com, an always-on computer by the people, for the people. One
+which is durable, easy to repair, & distributed like tap water for machine
+learning intelligence.
+
+The permacomputer is community-owned infrastructure optimized around four values:
+
+  TRUTH      First principles, math & science, open source code freely distributed
+  FREEDOM    Voluntary partnerships, freedom from tyranny & corporate control
+  HARMONY    Minimal waste, self-renewing systems with diverse thriving connections
+  LOVE       Be yourself without hurting others, cooperation through natural law
+
+This software contributes to that vision by making machine learning accessible
+to everyone through a free, open, embeddable chat interface. Code is seeds to
+sprout on any abandoned technology.
+
+Learn more: https://www.permacomputer.com
+
+NO WARRANTY. THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+
+That said, our permacomputer's digital membrane stratum continuously runs unit,
+integration, & functional tests on all of it's own software, with our
+permacomputer monitoring itself, repairing itself, with minimal human in the
+loop guidance. Our machine learning agents do their best to leave no stone unturned.
+
+Copyright (C) 2025-2026 TimeHexOn & foxhop & cthegray & russell@unturf
+https://russell.ballestrini.net
+https://www.timehexon.com
+https://www.foxhop.net
+https://carltonthegray.com
+https://www.unturf.com/software
+https://www.permacomputer.com
+https://uncloseai.com
+© uncloseai. 2026

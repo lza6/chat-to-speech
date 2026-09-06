@@ -1,0 +1,184 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+Swift 示例 - 免费 LLM 和 TTS AI 服务
+
+汽车
+光
+黑暗的
+Swift 示例
+本页面演示如何使用 SwiftOpenAI 社区库在 Swift 中使用 uncloseai.API 端点。 所有示例均使用相同的 OpenAI 兼容 API 接口，因此可以轻松地在不同的模型和端点之间切换。
+
+可用端点：
+
+Hermes： https://hermes.ai.unturf.com/v1 - 通用对话式人工智能
+Qwen 3 Coder： https://qwen.ai.unturf.com/v1 - 专业编码模型
+TTS： https://speech.ai.unturf.com/v1 - 文本转语音生成
+Swift 客户端安装
+将 SwiftOpenAI 添加到 Package.swift 依赖项中：
+
+dependencies: [
+    .package(url: "https://github.com/jamesrochabrun/SwiftOpenAI", from: "3.8.5")
+]
+非流式示例
+非流式模式会等待完整的响应后再返回。这种模式使用起来更简单，但生成过程中不会提供任何中间反馈。
+
+使用 Hermes（通用）
+import SwiftOpenAI
+
+let service = OpenAIServiceFactory.service(
+    apiKey: "choose-any-value",
+    baseURL: "https://hermes.ai.unturf.com/v1"
+)
+
+let parameters = ChatCompletionParameters(
+    messages: [.init(role: .user, content: .text("Give a Python Fizzbuzz solution in one line of code?"))],
+    model: .custom("adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic"),
+    temperature: 0.5,
+    maxTokens: 150
+)
+
+do {
+    let completion = try await service.startChat(parameters: parameters)
+    if let content = completion.choices.first?.message.content {
+        print(content)
+    }
+} catch {
+    print("Error: \(error)")
+}
+使用 Qwen 3 Coder（专用于编码）
+import SwiftOpenAI
+
+let service = OpenAIServiceFactory.service(
+    apiKey: "choose-any-value",
+    baseURL: "https://qwen.ai.unturf.com/v1"
+)
+
+let parameters = ChatCompletionParameters(
+    messages: [.init(role: .user, content: .text("Give a Python Fizzbuzz solution in one line of code?"))],
+    model: .custom("hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M"),
+    temperature: 0.5,
+    maxTokens: 150
+)
+
+do {
+    let completion = try await service.startChat(parameters: parameters)
+    if let content = completion.choices.first?.message.content {
+        print(content)
+    }
+} catch {
+    print("Error: \(error)")
+}
+流式传输示例
+流式模式会在生成响应时分块返回，从而提供实时反馈。这非常适合交互式应用程序和较长的响应。
+
+使用 Hermes（通用）
+import SwiftOpenAI
+
+let service = OpenAIServiceFactory.service(
+    apiKey: "choose-any-value",
+    baseURL: "https://hermes.ai.unturf.com/v1"
+)
+
+let parameters = ChatCompletionParameters(
+    messages: [.init(role: .user, content: .text("Give a Python Fizzbuzz solution in one line of code?"))],
+    model: .custom("adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic"),
+    temperature: 0.5,
+    maxTokens: 150
+)
+
+do {
+    let stream = try await service.startStreamedChat(parameters: parameters)
+    for try await chunk in stream {
+        if let content = chunk.choices.first?.delta.content {
+            print(content, terminator: "")
+        }
+    }
+} catch {
+    print("Error: \(error)")
+}
+使用 Qwen 3 Coder（专用于编码）
+import SwiftOpenAI
+
+let service = OpenAIServiceFactory.service(
+    apiKey: "choose-any-value",
+    baseURL: "https://qwen.ai.unturf.com/v1"
+)
+
+let parameters = ChatCompletionParameters(
+    messages: [.init(role: .user, content: .text("Give a Python Fizzbuzz solution in one line of code?"))],
+    model: .custom("hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M"),
+    temperature: 0.5,
+    maxTokens: 150
+)
+
+do {
+    let stream = try await service.startStreamedChat(parameters: parameters)
+    for try await chunk in stream {
+        if let content = chunk.choices.first?.delta.content {
+            print(content, terminator: "")
+        }
+    }
+} catch {
+    print("Error: \(error)")
+}
+文本转语音示例
+使用 TTS 接口从文本生成语音。音频将保存为 MP3 文件。
+
+import SwiftOpenAI
+import Foundation
+
+let service = OpenAIServiceFactory.service(
+    apiKey: "YOLO",
+    baseURL: "https://speech.ai.unturf.com/v1"
+)
+
+let parameters = AudioSpeechParameters(
+    model: .tts1,
+    input: "I think so therefore, Today is a wonderful day to grow something people love!",
+    voice: .alloy,
+    speed: 0.9
+)
+
+do {
+    let audioData = try await service.createSpeech(parameters: parameters)
+    let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("speech.mp3")
+    try audioData.write(to: fileURL)
+    print("Audio saved to: \(fileURL)")
+} catch {
+    print("Error: \(error)")
+}
+© uncloseai. 2025
+
+隐私政策 | 使用条款
+概述
+安装
+非流媒体
+爱马仕
+Qwen Coder
+流媒体
+爱马仕
+Qwen Coder
+文本转语音

@@ -1,0 +1,215 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+样式指南：uncloseai.js 组件参考
+
+汽车
+光
+黑暗的
+风格指南
+uncloseai.js 嵌入系统中每个组件的可视化参考。本页面记录了设计令牌、Vault 新手引导流程、聊天界面和控件。右下角的浮动按钮是实时嵌入：点击即可测试实际的模态框。
+
+调色板
+模态框系统使用的核心颜色。紫色渐变色用于标记标题、发送按钮和保险库提交按钮。所有其他颜色均通过 CSS 自定义属性适应浅色和深色主题。
+
+品牌渐变
+坡度
+#667eea → #764ba2
+基本的
+#667eea
+次要
+#764ba2
+界面颜色
+深色背景
+#1a1a2e
+聊天黑暗
+rgb(26,26,26)
+浅色背景
+#f8f9fa
+用户消息
+#007bff
+AI 信息黑暗
+#2d3748
+成功
+#28a745
+错误
+#dc3545
+边界
+#dee2e6
+排版
+品牌字体
+解开 ai。
+
+font-family: 'ChunkFiveRegular', monospace — 用于 h1 品牌标识、金库大门标题和浮动按钮。
+
+正文
+正文文本继承自 PicoCSS 系统字体栈。基本大小： 16px ，行高： 1.6 。
+
+标题比例因子： 1.125 （大二度）。h1 至 h6 通过 calc(1rem * var(--heading-scale)^n) 计算。
+
+代码
+代码块使用 highlight.js v11.10.0 和 a11y-dark 主题。模态框会在任何宿主页面上自动加载此样式表。行内代码使用 PicoCSS 等宽字体样式。
+
+// JavaScript: one-line installation
+const script = document.createElement("script");
+script.src = "https://uncloseai.com/uncloseai.js";
+script.type = "module";
+document.head.appendChild(script);
+# Python: streaming chat with uncloseai
+class UncloseAI:
+    def __init__(self):
+        self.endpoints = []
+
+    def chat_stream(self, model, messages):
+        for chunk in self._sse_stream(model, messages):
+            yield chunk["choices"][0]["delta"]["content"]
+# Bash: test the TTS endpoint
+curl -X POST https://speech.ai.unturf.com/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","voice":"alloy","input":"Hello world"}'
+金库大门
+用户打开弹窗后首先看到的就是保险库入口。它使用 AES-256 加密算法和设备特定的盐值，对聊天记录、API 密钥和设置进行密码加密。每个网站都有自己的保险库。
+
+新用户（创建保险库）
+暗黑主题
+🔐
+解开 ai。
+您的聊天记录、API 密钥和设置均使用您选择的密码和设备特定的加盐值，通过 AES-256 加密。每个网站都有自己的加密库。选择密码即可开始。
+Choose a password...
+浅色主题
+🔐
+解开 ai。
+您的聊天记录、API 密钥和设置均使用您选择的密码和设备特定的加盐值，通过 AES-256 加密。每个网站都有自己的加密库。选择密码即可开始。
+Choose a password...
+老用户（解锁）
+暗黑主题
+🔓
+解开 ai。
+您的加密聊天记录、API 密钥和设置已保存。请输入密码以解锁本网站的保险库。
+Choose a password...
+浅色主题
+🔓
+解开 ai。
+您的加密聊天记录、API 密钥和设置已保存。请输入密码以解锁本网站的保险库。
+Choose a password...
+错误状态
+🔓
+解开 ai。
+您的加密聊天记录、API 密钥和设置已保存。请输入密码以解锁本网站的保险库。
+Choose a password...
+密码错误，请重试。
+模态框标题
+这三个模态框的头部结构相同：渐变背景、标题和操作按钮。聊天和 TTS 模态框使用紫色渐变背景，而翻译模态框则使用绿色渐变背景。
+
+聊天模式
+紫色渐变，包含品牌标题、页面上下文副标题、设置齿轮和关闭按钮。
+
+解开 ai。
+讨论：uncloseai.js 风格指南
+TTS 模态
+紫色渐变色，带有“文本转语音”标题和关闭按钮。
+
+文本转语音
+翻译模态框
+绿色渐变（ #4CAF50 → #45a049 ），带有“翻译”标题和关闭按钮。
+
+翻译
+聊天信息
+用户消息右对齐，背景为蓝色。回复左对齐，并根据深色/浅色主题进行区分。两者均采用不对称圆角边框，营造对话般的氛围。
+
+暗黑主题
+您能帮我解决这个页面上的什么问题？
+我看到这是 uncloseai.js 的样式指南。我可以帮助您理解组件系统、配色方案、保险库加密，或者这里记录的任何 UI 模式。您对哪些方面感兴趣？
+请告诉我关于金库加密的信息。
+浅色主题
+您能帮我解决这个页面上的什么问题？
+我看到这是 uncloseai.js 的样式指南。我可以帮助您理解组件系统、配色方案、保险库加密，或者这里记录的任何 UI 模式。您对哪些方面感兴趣？
+请告诉我关于金库加密的信息。
+消息操作
+每条消息都有鼠标悬停时显示的操作按钮：复制为 Markdown、复制为 HTML、文本转语音下载和删除。
+
+控制
+控制条位于聊天区域和输入框之间。在移动设备上可水平滚动。每个按钮都会触发一个模态功能。
+
+按钮
+渐变按钮
+用于主要操作：提交保险库、发送消息和模态 CTA 按钮。
+
+控制按钮
+用于控制条和设置面板中的辅助操作。
+
+浮动按钮
+入口点。固定位置，右下角。使用 ChunkFive 字体。颜色会根据宿主页面的主题进行调整。
+
+解开 ai。
+输入
+聊天输入（四舍五入）
+主消息输入框。圆角 border-radius: 24px ，自动增长至 120px 高度，焦点环使用品牌蓝色 #667eea 。
+
+Type your message...
+Ask about this page...
+金库输入（矩形）
+用于金库门和设置表单。 border-radius: 10px ，带有细微的焦点环。
+
+Choose a password...
+https://api.example.com/v1
+在线演示
+页面右下角的 “取消关闭” 浮动按钮才是真正的嵌入窗口。点击它即可与完整的模态框交互，包括创建保险库、聊天、文本转语音、翻译和设置。以上所有功能都会在该模态框内实时呈现。
+
+嵌入代码
+<!-- Add to any HTML page -->
+<script src="https://uncloseai.com/uncloseai.js" type="module"></script>
+只需一行代码即可加载整个模态系统：保险库加密、反向 RAG 聊天（将实时页面内容注入到每次对话中）、文本转语音、翻译、文件上传和设置。无需任何配置。有关自定义选项，请参阅完整文档 。
+
+© uncloseai. 2026
+
+隐私政策 | 使用条款
+概述
+调色板
+品牌渐变
+界面颜色
+排版
+品牌字体
+正文
+代码
+金库大门
+新用户
+老用户
+错误状态
+模态框标题
+聊天
+文本转语音
+翻译
+聊天信息
+消息操作
+控制
+按钮
+坡度
+控制
+漂浮的
+输入
+聊天输入
+保险库输入
+在线演示

@@ -1,0 +1,229 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+Java 示例 - 免费 LLM 和 TTS AI 服务
+
+汽车
+光
+黑暗的
+Java 示例
+本页面演示如何使用官方 OpenAI Java 库在 Java 中使用 uncloseai.API 端点。 所有示例均使用相同的 OpenAI 兼容 API 接口，因此可以轻松地在不同的模型和端点之间切换。
+
+可用端点：
+
+Hermes： https://hermes.ai.unturf.com/v1 - 通用对话式人工智能
+Qwen 3 Coder： https://qwen.ai.unturf.com/v1 - 专业编码模型
+TTS： https://speech.ai.unturf.com/v1 - 文本转语音生成
+Java 客户端安装
+将官方 OpenAI Java 库添加到 Maven pom.xml 文件中：
+
+<dependency>
+    <groupId>com.openai</groupId>
+    <artifactId>openai-java</artifactId>
+    <version>4.3.0</version>
+</dependency>
+或者对于 Gradle：
+
+implementation 'com.openai:openai-java:4.3.0'
+非流式示例
+非流式模式会等待完整的响应后再返回。这种模式使用起来更简单，但生成过程中不会提供任何中间反馈。
+
+使用 Hermes（通用）
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.*;
+import java.util.List;
+
+public class HermesExample {
+    public static void main(String[] args) {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey("choose-any-value")
+            .baseURL("https://hermes.ai.unturf.com/v1")
+            .build();
+
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+            .model("adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic")
+            .addMessage(ChatCompletionMessageParam.ofChatCompletionUserMessageParam(
+                ChatCompletionUserMessageParam.builder()
+                    .role(ChatCompletionUserMessageParam.Role.USER)
+                    .content(ChatCompletionUserMessageParam.Content.ofTextContent(
+                        "Give a Python Fizzbuzz solution in one line of code?"
+                    ))
+                    .build()
+            ))
+            .temperature(0.5)
+            .maxTokens(150L)
+            .build();
+
+        ChatCompletion completion = client.chat().completions().create(params);
+        System.out.println(completion.choices().get(0).message().content().get());
+    }
+}
+使用 Qwen 3 Coder（专用于编码）
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.*;
+import java.util.List;
+
+public class QwenExample {
+    public static void main(String[] args) {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey("choose-any-value")
+            .baseURL("https://qwen.ai.unturf.com/v1")
+            .build();
+
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+            .model("hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M")
+            .addMessage(ChatCompletionMessageParam.ofChatCompletionUserMessageParam(
+                ChatCompletionUserMessageParam.builder()
+                    .role(ChatCompletionUserMessageParam.Role.USER)
+                    .content(ChatCompletionUserMessageParam.Content.ofTextContent(
+                        "Give a Python Fizzbuzz solution in one line of code?"
+                    ))
+                    .build()
+            ))
+            .temperature(0.5)
+            .maxTokens(150L)
+            .build();
+
+        ChatCompletion completion = client.chat().completions().create(params);
+        System.out.println(completion.choices().get(0).message().content().get());
+    }
+}
+流式传输示例
+流式模式会在生成响应时分块返回，从而提供实时反馈。这非常适合交互式应用程序和较长的响应。
+
+使用 Hermes（通用）
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.*;
+
+public class HermesStreamExample {
+    public static void main(String[] args) {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey("choose-any-value")
+            .baseURL("https://hermes.ai.unturf.com/v1")
+            .build();
+
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+            .model("adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic")
+            .addMessage(ChatCompletionMessageParam.ofChatCompletionUserMessageParam(
+                ChatCompletionUserMessageParam.builder()
+                    .role(ChatCompletionUserMessageParam.Role.USER)
+                    .content(ChatCompletionUserMessageParam.Content.ofTextContent(
+                        "Give a Python Fizzbuzz solution in one line of code?"
+                    ))
+                    .build()
+            ))
+            .temperature(0.5)
+            .maxTokens(150L)
+            .build();
+
+        client.chat().completions().createStreaming(params)
+            .forEach(chunk -> {
+                String content = chunk.choices().get(0).delta().content().orElse("");
+                if (!content.isEmpty()) {
+                    System.out.print(content);
+                }
+            });
+    }
+}
+使用 Qwen 3 Coder（专用于编码）
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.*;
+
+public class QwenStreamExample {
+    public static void main(String[] args) {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey("choose-any-value")
+            .baseURL("https://qwen.ai.unturf.com/v1")
+            .build();
+
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+            .model("hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M")
+            .addMessage(ChatCompletionMessageParam.ofChatCompletionUserMessageParam(
+                ChatCompletionUserMessageParam.builder()
+                    .role(ChatCompletionUserMessageParam.Role.USER)
+                    .content(ChatCompletionUserMessageParam.Content.ofTextContent(
+                        "Give a Python Fizzbuzz solution in one line of code?"
+                    ))
+                    .build()
+            ))
+            .temperature(0.5)
+            .maxTokens(150L)
+            .build();
+
+        client.chat().completions().createStreaming(params)
+            .forEach(chunk -> {
+                String content = chunk.choices().get(0).delta().content().orElse("");
+                if (!content.isEmpty()) {
+                    System.out.print(content);
+                }
+            });
+    }
+}
+文本转语音示例
+使用 TTS 接口从文本生成语音。音频将保存为 MP3 文件。
+
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.*;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+public class TTSExample {
+    public static void main(String[] args) throws IOException {
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey("YOLO")
+            .baseURL("https://speech.ai.unturf.com/v1")
+            .build();
+
+        SpeechCreateParams params = SpeechCreateParams.builder()
+            .model(SpeechModel.TTS_1)
+            .voice(SpeechCreateParams.Voice.ALLOY)
+            .input("I think so therefore, Today is a wonderful day to grow something people love!")
+            .speed(0.9)
+            .build();
+
+        byte[] audioBytes = client.audio().speech().create(params);
+
+        try (FileOutputStream fos = new FileOutputStream("speech.mp3")) {
+            fos.write(audioBytes);
+        }
+    }
+}
+© uncloseai. 2025
+
+隐私政策 | 使用条款
+概述
+安装
+非流媒体
+爱马仕
+Qwen Coder
+流媒体
+爱马仕
+Qwen Coder
+文本转语音

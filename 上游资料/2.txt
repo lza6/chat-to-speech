@@ -1,0 +1,192 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+我们如何进行推理
+
+汽车
+光
+黑暗的
+我们如何进行推理
+本部分为可选部分。仅当您想尝试为项目贡献空闲的 GPU 时间，或者想在自己的集群中复现所有步骤时才需要填写。
+
+vLLM 设置 — Hermes (3090)
+我们使用 vLLM 运行模型，通常使用完整的 f16 安全张量。我们确保使用虚拟环境来存放依赖项。
+
+注意： 对于 Hermes，我们使用 adamo1139 的 FP8 量化（adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic），该量化针对 4090 和 3090 GPU 进行了优化。
+
+工具调用： Hermes 3 需要启用 --enable-auto-tool-choice 和 --tool-call-parser hermes 标志才能支持通过 OpenAI 兼容的 API 进行函数调用。缺少这些标志，工具调用请求将会失败。
+
+GPU 内存： --max-num-seqs 32 和 --gpu-memory-utilization 0.85 这两个参数可以限制并发序列数，从而为显存留出足够的空间。如果没有这些参数，vLLM 默认使用 256 个并发序列，这会导致在 24 GiB 显存的显卡上，在 82k 上下文中，采样器预热期间出现内存溢出（错误信息： torch.OutOfMemoryError: CUDA out of memory ... when warming up sampler with 256 dummy requests ）。对于单张 3090 显卡上的 8B 模型来说，32 个并发序列是一个合理的数量。
+
+在新域上建立副本集群。
+
+sudo apt-get install gcc python3.12-dev python3.12-venv
+cd ~
+python3 -m venv env
+source env/bin/activate
+pip install vllm
+python -m vllm.entrypoints.openai.api_server \
+    --model adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic \
+    --host 0.0.0.0 --port 18888 \
+    --max-model-len 82000 \
+    --max-num-seqs 32 \
+    --gpu-memory-utilization 0.85 \
+    --enable-auto-tool-choice \
+    --tool-call-parser hermes
+        
+vLLM 设置 — Qwen (4090)
+TL;DR： 在单个 RTX 3090 或 4090（24 GiB VRAM）上，您可以使用 fp8 KV 缓存运行 Qwen3.6-27B 的 INT4 量化，以适应 64k 标记上下文窗口。
+
+Qwen3.6-27B 是 Qwen 团队推出的多模态旗舰产品——将视觉和文本功能集成于一体（支持 OCR、文档解析、屏幕截图和图表显示）。我们使用 vLLM 将其部署在一块 RTX 4090 显卡（24 GiB 显存）上。
+
+模型选择： 我们采用 Lorbus/Qwen3.6-27B-int4-AutoRound ，其权重为 17.45 GiB，包含 MTP 草稿层和视觉编码器。AWQ 替代方案 ( cyankiwi/Qwen3.6-27B-AWQ-INT4 ) 占用磁盘空间更大，为 19.04 GiB；对于 24 GiB 的存储卡来说，AutoRound 是更轻量级的选择。
+
+fp8 键值缓存： --kv-cache-dtype fp8 可将 Ada Lovelace (sm_89, RTX 4090) 上的键值缓存内存减半。这对于在 24 GiB 显卡上将 64k 上下文适配到 27B 模型至关重要。对于聊天数据而言，质量损失几乎为零——fp8 格式的键值缓存以及已为 INT4 的权重远低于量化噪声基底。
+
+GPU 内存预算： --gpu-memory-utilization 0.95 仅留下足够的 KV 池（约 2.3 GiB）供一个活动的 64k 序列使用 0.92 报告的池大小仅为 1.62 GiB，因为 vit（视觉转换器）预热消耗的激活内存比预期要多。0.95 0.95 有效，是因为 vLLM 考虑了预热期间测量的实际峰值。
+
+工具调用： Lorbus 的聊天模板会输出 qwen3_coder 工具格式（ <tool_call><function=...><parameter=...> ）。使用 --tool-call-parser qwen3_coder 参数，以便 vLLM 将其解析为正确的 OpenAI tool_calls JSON 格式。否则，像 hermes-agent 和 goose 这样的代理框架将无法针对该端点调用工具。
+
+上下文窗口： --max-model-len 65536 符合 hermes-agent 和类似框架所需的 64k 最小值。vLLM 在连续批处理中混合使用不同长度的提示——短聊天请求（每个 8k，使用 fp8 的键值对为 0.29 GiB，共 1001 个）仍然可以与一个长的 64k 序列（2.3 GiB）并排显示。
+
+Salt 状态 + pillar（foxhop-states、foxhop-pillar）驱动部署；下面的 systemd 单元是渲染的 ExecStart。
+
+sudo apt-get install gcc python3.12-dev python3.12-venv ninja-build
+cd ~
+python3 -m venv env
+source env/bin/activate
+pip install vllm
+vllm serve Lorbus/Qwen3.6-27B-int4-AutoRound \
+    --host 0.0.0.0 --port 18888 \
+    --max-model-len 65536 \
+    --max-num-seqs 16 \
+    --gpu-memory-utilization 0.95 \
+    --kv-cache-dtype fp8 \
+    --dtype auto \
+    --quantization auto_round \
+    --enable-prefix-caching \
+    --enable-auto-tool-choice \
+    --tool-call-parser qwen3_coder
+        
+为什么需要 ninja-build： FlashInfer（vLLM 的 CUDA 采样后端）会在首次请求时即时编译其 top-k/top-p 内核，并调用 ninja wheel 包没有包含 ninja 二进制文件，因此如果没有安装 ninja-build 引擎会在启动时崩溃并出现 FileNotFoundError: 'ninja' 。
+
+代理设置
+如果您想了解我们如何设置代理，请查看 /etc/caddy/Caddyfile 文件。
+
+hermes.ai.unturf.com {
+    reverse_proxy <removed>:18888
+    log {
+        output file /var/log/caddy/hermes.ai.unturf.com.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+    }
+    tls {
+        on_demand
+    }
+}
+
+qwen.ai.unturf.com {
+    reverse_proxy <removed>:18889
+    log {
+        output file /var/log/caddy/qwen.ai.unturf.com.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+    }
+    tls {
+        on_demand
+    }
+}
+
+speech.ai.unturf.com {
+    reverse_proxy <removed>:8000
+    log {
+        output file /var/log/caddy/speech.ai.unturf.com.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+    }
+    tls {
+        on_demand
+    }
+}
+        
+模型发现
+vLLM 提供与 OpenAI 兼容的 API，并内置文档。您可以使用以下接口发现可用模型并探索完整的 API：
+
+Swagger 文档
+访问 /docs 端点即可查看交互式 API 文档：
+
+hermes.ai.unturf.com/docs - Hermes 端点 Swagger 文档
+
+qwen.ai.unturf.com/docs - Qwen 端点 Swagger 文档
+
+Swagger UI 允许您浏览所有可用的端点，查看请求/响应架构，并直接在浏览器中测试 API 调用。
+
+模型发现
+要获取当前托管的模型 ID，请查询 /v1/models 端点：
+
+hermes.ai.unturf.com/v1/models - 爱马仕模型
+qwen.ai.unturf.com/v1/models - Qwen 模型（视觉 + 文本）
+或者通过 curl：
+
+curl https://hermes.ai.unturf.com/v1/models
+curl https://qwen.ai.unturf.com/v1/models
+示例回复：
+
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
+      "object": "model",
+      "created": 1735689600,
+      "owned_by": "vllm",
+      "root": "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
+      "max_model_len": 82000
+    }
+  ]
+}
+
+提示： 始终通过编程方式查询 /v1/models 而不是将模型名称硬编码到代码中。这样可以确保即使模型更新或替换，您的代码也能正常工作。
+
+速率限制
+速率限制是根据客户端 IP 地址配置的：每个 IP 地址每个端点每秒 3 个请求。
+
+后续步骤
+准备好为您的应用程序添加文本转语音功能了吗？
+
+📖 阅读文本转语音文档 →
+
+© uncloseai. 2025
+
+隐私政策 | 使用条款
+概述
+vLLM 设置 — Hermes
+vLLM 设置 — Qwen
+代理设置
+模型发现
+速率限制

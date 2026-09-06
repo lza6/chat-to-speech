@@ -1,0 +1,102 @@
+家
+示例 C
+C# 示例
+Dart 示例
+Elixir 示例
+Go 示例
+Java 示例
+Kotlin 示例
+Node.js 示例
+PHP 示例
+Python 示例
+Ruby 示例
+Rust 示例
+Swift 示例
+uncloseai.js 文档
+风格指南
+取消关闭 ai-cli
+浏览器玩具
+推理设置
+文本转语音
+我们的爬行者
+反向 RAG
+🔗所有语言
+📚 预订
+解开 ai。
+欢迎访问 uncloseai.com - 免费 LLM 和文本转语音人工智能服务
+
+汽车
+光
+黑暗的
+介绍 uncloseai、Hermes、Qwen 和 TTS 语音端点
+在 uncloseai. ，我们提供由多种 AI 模型和 TTS（文本转语音）接口支持的免费 AI 服务。我们的使命是为所有人提供易于使用的 AI 工具，秉承“免费如啤酒”和“自由如自由”的原则。您可以免费使用我们的模型，我们也鼓励您贡献代码，并基于我们使用的开源代码和模型进行开发。
+
+可用端点：
+
+hermes.ai.unturf.com/v1 - 通用对话式人工智能
+qwen.ai.unturf.com/v1 - 专用编码模型
+speech.ai.unturf.com/v1 - 文本转语音
+请参阅我们的模型发现文档 ，查询当前托管的模型 ID。
+
+我们的目标是成为现有系统的直接替代品，您可以使用现有的开源 OpenAI 客户端与我们进行通信。
+
+uncloseai.js - 人人都能使用的客户端 AI
+此页面包含 uncloseai.js 脚本，该脚本会在右下角添加一个浮动的“uncloseai.”按钮。点击该按钮即可直接通过浏览器与 Hermes AI 进行交互。
+
+这是一个纯 Web 客户端解决方案 ，无需服务器。只需一行代码，即可为任何静态网站或 CDN 添加 AI 功能。
+
+✨ 一键安装
+<script src="https://uncloseai.com/uncloseai.js" type="module"></script>
+📖 阅读 uncloseai.js 的完整文档 →
+
+🧩 浏览器玩具
+想在每个网页上都显示 uncloseai. 按钮，又不想添加任何代码？安装浏览器扩展程序即可。轻量级封装程序，可将 uncloseai.js 注入到您访问的每个页面。无需服务器，无需注册账号。聊天记录保存在浏览器本地存储 (localStorage) 中，并按域名进行限制。
+
+Chrome / Edge / Brave / Vivaldi / Arc — Manifest V3
+Firefox — Manifest V2
+Safari — Web 扩展（通过 Xcode）
+🧩 获取浏览器玩具 →
+
+代码示例
+我们提供使用 uncloseai.API 和常用编程语言的全面代码示例。每个示例都演示了 Hermes（通用人工智能）和 Qwen 3 Coder（专用编码模型）的流式和非流式模式。
+
+快速入门示例：
+Python 示例 - 使用 OpenAI Python 客户端库的完整示例
+Node.js 示例 - 使用 OpenAI Node.js 客户端库的完整示例
+42 种编程语言：
+我们提供支持 42 种编程语言的流式传输 SDK 实现！浏览所有语言示例：
+
+🔗 浏览全部 42 个语言示例→
+
+包含：AWK、Bash、C、C++、C#、Clojure、COBOL、Common Lisp、Crystal、D、Dart、Deno、Elixir、Erlang、F#、Fortran、Go、Groovy、Haskell、Java、JavaScript、Julia、Kotlin、Lua、Mojo*、Nim、OCaml、Odin、Perl、PHP、PowerShell、Prolog、Python、R、Ruby、Rust、Scala、Scheme、Tcl、V、VB.NET 和 Zig！
+
+* Mojo 实现仅支持非流式传输（截至 2025 年 10 月 15 日，Lightbug HTTP 库尚不支持 SSE 流式传输）
+
+uncloseai.book - 机器学习参考指南：
+📚 在 unturf.com 商店购买 uncloseai. 书籍 →
+
+涵盖推理客户端、流式实现以及所有 42 种编程语言最佳实践的综合参考指南。
+
+所有示例均使用与 OpenAI 兼容的 API 接口，因此可以轻松集成到现有代码中。只需将 base_url 更改为指向我们的端点即可。有关端点 URL 以及如何查询当前模型 ID，请参阅我们的模型发现文档 。
+
+我们如何进行推理
+想贡献空闲的 GPU 时间，还是想在自己的集群中复现所有操作？
+
+📖 阅读完整的推理设置文档 →
+
+开源和公共领域
+uncloseai. 完全属于公共领域 ——免费，就像啤酒一样免费，就像自由一样自由。人工智能惠及所有人，互联网惠及所有人，开放网络惠及所有人。
+
+📦 源代码： https://git.unturf.com/engineering/unturf/uncloseai.com
+
+📄 完整文档： 请参阅存储库中的 README.rst，了解完整的技术细节、架构和贡献指南。
+
+问题、评论和讨论
+请在下方 留言框中告诉我们您的想法！
+
+© uncloseai. 2025
+
+隐私政策 | 使用条款
+
+
+这个怎么用呢？
