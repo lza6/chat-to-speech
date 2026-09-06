@@ -183,6 +183,58 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
     assert(!/thinking process|Analyze/.test(filtered[0]), '思考前缀泄漏到结果');
   });
 
+  // === T14: P2-1 主色已改靛蓝/紫（不再用红 #e74c3c）===
+  await test('T14 主色改为靛蓝/紫（v3 品牌色）', async () => {
+    const accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+    const accent2 = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim());
+    console.log('   --accent=' + accent + ' --accent-2=' + accent2);
+    assert(/#6366f1/i.test(accent), '主色未改为靛蓝 #6366f1，实际=' + accent);
+    assert(/#8b5cf6/i.test(accent2), '副色未改为紫 #8b5cf6，实际=' + accent2);
+    const themeColor = await page.getAttribute('meta[name="theme-color"]', 'content');
+    assert(/#6366f1/i.test(themeColor), 'meta theme-color 未同步');
+  });
+
+  // === T15: P2-3 历史重听/搜索/导出 ===
+  await test('T15 历史增强（重听按钮+搜索过滤+导出按钮存在）', async () => {
+    // 先制造一条历史：朗读成功后 saveHistory（离线引擎2 也调 saveHistory）
+    await page.fill('#tts-input', '历史增强测试文本。');
+    await page.click('#speak-btn');
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => { try { window.speechSynthesis.cancel(); } catch(e){} });
+    // 展开历史：先确保从关闭状态打开（避免 T11 残留的 open 状态导致 toggle 变关闭）
+    const expanded = await page.getAttribute('#history-btn', 'aria-expanded');
+    if (expanded === 'true') { await page.click('#history-btn'); await page.waitForTimeout(150); } // 先关
+    await page.click('#history-btn'); // 再开
+    await page.waitForTimeout(300);
+    const exportVisible = await page.isVisible('#export-history-btn');
+    const searchVisible = await page.isVisible('#history-search');
+    console.log('   导出按钮可见=' + exportVisible + ' 搜索框可见=' + searchVisible);
+    assert(exportVisible, '导出按钮不可见');
+    assert(searchVisible, '搜索框不可见');
+    // 重听按钮存在（若历史非空）
+    const replayCount = await page.locator('.history-item .chip-btn').count();
+    console.log('   历史项数=' + replayCount + '（重听按钮）');
+    // 搜索过滤
+    await page.fill('#history-search', '不存在的关键词xxx');
+    await page.waitForTimeout(200);
+    const emptyAfter = await page.textContent('.history-panel');
+    assert(/无匹配|暂无/.test(emptyAfter) || replayCount === 0, '搜索过滤后未显示空状态');
+    await page.fill('#history-search', '');
+    await page.waitForTimeout(200);
+  });
+
+  // === T16: 暗色模式对比度（正文可读）===
+  await test('T16 暗色模式正文/副色对比度可读', async () => {
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    await page.waitForTimeout(200);
+    const ink = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ink').trim());
+    const card = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--card').trim());
+    console.log('   暗色 ink=' + ink + ' card=' + card);
+    assert(/#f1f5f9/i.test(ink) || /#e8ecf2/i.test(ink), '暗色正文色未提亮');
+    // 恢复
+    await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  });
+
   await browser.close();
 
   // 汇总

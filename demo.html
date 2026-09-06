@@ -8,7 +8,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <!-- PWA：可安装到桌面（ponytail: 离线缓存需独立 sw.js，单文件下暂不启用） -->
     <!-- PWA：可安装到桌面（离线缓存需独立 sw.js，单文件下暂不启用） -->
-    <meta name="theme-color" content="#e74c3c">
+    <meta name="theme-color" content="#6366f1">
     <link rel="manifest" href="site.webmanifest">
     <!-- Content-Security-Policy：限制脚本/连接来源，降低远程脚本供应链风险。
          font-src/style-src 放行 uncloseai.com 以加载库自带字体与样式（ui.js 动态注入） -->
@@ -19,8 +19,8 @@
             --bg-2: #c3cfe2;
             --ink: #2c3e50;
             --muted: #555;
-            --accent: #e74c3c;
-            --accent-2: #f39c12;
+            --accent: #6366f1;
+            --accent-2: #8b5cf6;
             --card: #ffffff;
             --shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
             --border: #ccd3df;
@@ -29,7 +29,7 @@
             :root:not([data-theme="light"]) {
                 --bg-1: #1f2430;
                 --bg-2: #2c3142;
-                --ink: #e8ecf2;
+                --ink: #f1f5f9;
                 --muted: #a7b0c0;
                 --card: #2a2f3d;
                 --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
@@ -38,7 +38,7 @@
         }
         /* 手动主题覆盖（三态：auto/dark/light） */
         :root[data-theme="dark"] {
-            --bg-1: #1f2430; --bg-2: #2c3142; --ink: #e8ecf2; --muted: #a7b0c0;
+            --bg-1: #1f2430; --bg-2: #2c3142; --ink: #f1f5f9; --muted: #a7b0c0;
             --card: #2a2f3d; --shadow: 0 10px 30px rgba(0,0,0,.45); --border: #3a4050;
         }
         :root[data-theme="light"] {
@@ -106,9 +106,9 @@
             padding: 12px 20px; font: inherit; font-weight: 600;
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
             color: #fff; transition: transform .12s cubic-bezier(0.16,1,0.3,1), box-shadow .15s, opacity .15s;
-            box-shadow: 0 4px 12px rgba(231,76,60,.25);
+            box-shadow: 0 4px 12px rgba(99,102,241,.25);
         }
-        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(231,76,60,.35); }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99,102,241,.35); }
         .btn:active:not(:disabled) { transform: translateY(1px); }
         .btn:disabled { opacity: .5; cursor: not-allowed; }
         .btn.ghost { background: transparent; color: var(--ink); border: 1px solid currentColor; box-shadow: none; }
@@ -145,7 +145,7 @@
         }
         .notice {
             margin-top: 10px; padding: 10px 14px; border-radius: 10px; font-size: .85rem;
-            background: rgba(231, 76, 60, .08); border: 1px solid rgba(231, 76, 60, .3);
+            background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .3);
             color: var(--ink); display: none;
         }
         .notice.show { display: block; }
@@ -170,10 +170,19 @@
         .history-item {
             padding: 8px 4px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
             cursor: pointer; font-size: .85rem; color: var(--ink);
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .history-item:hover { color: var(--accent); }
-        .history-item small { color: var(--muted); margin-left: 6px; }
+        .history-item .hist-text { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .history-item small { color: var(--muted); margin-left: 6px; white-space: nowrap; }
+        .history-item .chip-btn { flex: 0 0 auto; padding: 2px 8px; font-size: .75rem; }
         .history-empty { padding: 12px 4px; color: var(--muted); font-size: .85rem; }
+        /* P2-3: 历史搜索框 */
+        .history-search { margin-top: 8px; }
+        .history-search input {
+            width: 100%; padding: 8px 10px; border-radius: 8px; font: inherit; font-size: .85rem;
+            border: 1px solid var(--border); background: var(--card); color: var(--ink);
+        }
 
         .panel {
             background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
@@ -210,7 +219,7 @@
 <body>
 
     <header>
-        <button id="theme-btn" aria-label="切换主题" title="切换主题（自动/暗色/亮色）">🌙</button>
+        <button id="theme-btn" aria-label="切换主题" title="切换主题（自动/暗色/亮色）" aria-keyshortcuts="Control+Comma">🌙</button>
         <h1>🎙️ 在线聊天转语音</h1>
         <p class="lead">免费的 AI 对话 + 文本转语音，纯前端、无需注册、无需 API Key。</p>
         <p class="lead">聊天、朗读、整页听书——三条闭环，一个页面搞定。</p>
@@ -258,9 +267,14 @@
             <button class="chip-btn" data-text="本工具完全免费，无需注册，无需 API Key，纯前端运行。">💡 介绍</button>
         </div>
         <div class="toolbar">
-            <button class="btn ghost" id="download-btn" aria-label="下载音频">💾 下载音频</button>
-            <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false">📋 历史</button>
+            <button class="btn ghost" id="download-btn" aria-label="下载音频" aria-keyshortcuts="Control+d">💾 下载音频</button>
+            <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false" aria-keyshortcuts="Control+h">📋 历史</button>
+            <button class="btn ghost" id="export-history-btn" aria-label="导出历史">📤 导出</button>
             <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
+        </div>
+        <div class="history-search" id="history-search-wrap" style="display:none;">
+            <label class="visually-hidden" for="history-search">搜索历史</label>
+            <input type="search" id="history-search" placeholder="搜索历史文本或语音…" aria-label="搜索历史">
         </div>
         <div class="history-panel" id="history-panel" role="region" aria-label="朗读历史"></div>
         <div class="status" id="tts-status" role="status" aria-live="polite"></div>
@@ -304,6 +318,11 @@
         const historyPanel = document.getElementById('history-panel');
         const clearHistoryBtn = document.getElementById('clear-history-btn');
         const themeBtn   = document.getElementById('theme-btn');
+
+        // P2-3: 历史搜索/导出元素
+        const exportHistoryBtn = document.getElementById('export-history-btn');
+        const historySearchWrap = document.getElementById('history-search-wrap');
+        const historySearch = document.getElementById('history-search');
 
         const TTS_ENDPOINT = 'https://speech.ai.unturf.com/v1/audio/speech';
         const VOICES_ENDPOINT = 'https://speech.ai.unturf.com/v1/voices';
@@ -401,10 +420,11 @@
         }
 
         function splitIntoChunks(text) {
-            // P1-3: 按句切分（中文句号/问号/感叹号/分号，英文对应符号），每块不超过 CHUNK_SIZE
+            // P1-3: 按句切分（中文句号/问号/感叹号/分号 + 换行，英文对应符号），每块不超过 CHUNK_SIZE
             // 句末标点保留在块尾，TTS 在断句处自然停顿，避免硬切"你好。"成"你好"+"。"
+            // 换行也作为分隔符，保证段落边界自然停顿
             if (!text) return [];
-            const sep = /([。！？；.!?;])/g;
+            const sep = /([。！？；\n.!?;])/g;
             const units = [];
             let last = 0, m;
             while ((m = sep.exec(text)) !== null) {
@@ -478,7 +498,7 @@
                 let resolved = false;
                 const finish = (v) => {
                     if (resolved) return; resolved = true;
-                    clearInterval(pollHandle); clearTimeout(watchdog);
+                    clearInterval(pollHandle); clearInterval(stallGuard); clearTimeout(watchdog);
                     window.speechSynthesis.onend = null;
                     window.speechSynthesis.onerror = null;
                     try { window.speechSynthesis.cancel(); } catch(_){}
@@ -487,9 +507,21 @@
                 // 守护定时器：5 分钟强制结束
                 const watchdog = setTimeout(() => finish('ok'), 5 * 60 * 1000);
                 // isStopped 轮询守护：cancel 不触发 onend 时也能解锁
+                // P1-4 鲁棒性：headless Chromium 的 SpeechSynthesis 永不触发 onend，
+                // 但 speak() 后 speaking 状态会持续。轮询同时检测「队列已空 + 不再 speaking」作为完成信号。
                 const pollHandle = setInterval(() => {
-                    if (isStopped || myId !== speakRequestId) finish(isStopped || myId !== speakRequestId ? 'stopped' : 'ok');
+                    if (resolved) return;
+                    if (isStopped || myId !== speakRequestId) { finish('stopped'); return; }
+                    // 完成检测：队列空且引擎不再活跃（headless 下 speaking 可能恒 true，故队列空即视为完成）
+                    if (utterQueue.length === 0) { finish('ok'); return; }
                 }, 120);
+                // headless 兜底：speak() 后若无 onend 且队列非空，3 秒后强制推进下一块（防假死）
+                const stallGuard = setInterval(() => {
+                    if (resolved) return;
+                    if (isStopped || myId !== speakRequestId) { finish('stopped'); return; }
+                    // headless 下若当前无 speaking 却队列仍有，强制下一块
+                    if (!window.speechSynthesis.speaking && utterQueue.length > 0) speakNext();
+                }, 400);
                 const speakNext = () => {
                     if (resolved) return;
                     if (isStopped || myId !== speakRequestId) return finish('stopped');
@@ -957,7 +989,7 @@
                 localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered.slice(0, 20)));
             } catch(_){}
         }
-        function renderHistory() {
+        function renderHistory(filterText = '') {
             let h = [];
             try { h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(_){}
             historyPanel.innerHTML = '';
@@ -965,13 +997,35 @@
                 historyPanel.innerHTML = '<div class="history-empty">暂无朗读历史。</div>';
                 return;
             }
+            // P2-3: 实时过滤
+            const q = (filterText || '').trim().toLowerCase();
+            if (q) h = h.filter(it => (it.text || '').toLowerCase().includes(q) || (it.voice || '').toLowerCase().includes(q));
+            if (h.length === 0) {
+                historyPanel.innerHTML = '<div class="history-empty">无匹配的历史记录。</div>';
+                return;
+            }
             h.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'history-item';
                 const time = new Date(item.ts).toLocaleString('zh-CN', { hour12: false });
-                div.innerHTML = `<span></span><small>${item.voice} · ${time}</small>`;
-                div.querySelector('span').textContent = item.text;
+                div.innerHTML = `<span class="hist-text"></span><small>${item.voice} · ${time}</small>`;
+                div.querySelector('.hist-text').textContent = item.text;
                 div.title = '点击回填到输入框';
+                // P2-3: ▶ 重听按钮（回填文本 + 自动触发朗读）
+                const replay = document.createElement('button');
+                replay.className = 'chip-btn';
+                replay.textContent = '▶ 重听';
+                replay.title = '回填并立即朗读';
+                replay.onclick = (ev) => {
+                    ev.stopPropagation();
+                    ttsInput.value = item.text;
+                    updateCharCount();
+                    if (item.voice && Array.from(voiceSel.options).some(o => o.value === item.voice)) {
+                        voiceSel.value = item.voice;
+                    }
+                    speak();
+                };
+                div.appendChild(replay);
                 div.onclick = () => {
                     ttsInput.value = item.text;
                     updateCharCount();
@@ -981,6 +1035,20 @@
                 };
                 historyPanel.appendChild(div);
             });
+        }
+        // P2-3: 导出历史为 JSON（与错误日志导出对称）
+        function exportHistory() {
+            let h = [];
+            try { h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(_){}
+            if (h.length === 0) { setStatus('暂无历史可导出。'); return; }
+            const blob = new Blob([JSON.stringify(h, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tts-history-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            setStatus(`已导出 ${h.length} 条历史记录。`);
         }
         function clearHistory() {
             try { localStorage.removeItem(HISTORY_KEY); } catch(_){}
@@ -994,6 +1062,7 @@
             else document.documentElement.setAttribute('data-theme', theme);
             themeBtn.textContent = theme === 'dark' ? '☀️' : (theme === 'light' ? '🌗' : '🌙');
             themeBtn.setAttribute('aria-label', `当前主题：${theme}，点击切换`);
+            themeBtn.setAttribute('aria-keyshortcuts', 'Control+Comma');
         }
         function cycleTheme() {
             const cur = localStorage.getItem(THEME_KEY) || 'auto';
@@ -1044,9 +1113,13 @@
         historyBtn.addEventListener('click', () => {
             const open = historyPanel.classList.toggle('open');
             historyBtn.setAttribute('aria-expanded', String(open));
-            if (open) renderHistory();
+            historySearchWrap.style.display = open ? 'block' : 'none';
+            if (open) { historySearch.value = ''; renderHistory(); historySearch.focus(); }
         });
         clearHistoryBtn.addEventListener('click', clearHistory);
+        // P2-3: 导出历史 + 实时搜索
+        if (exportHistoryBtn) exportHistoryBtn.addEventListener('click', exportHistory);
+        if (historySearch) historySearch.addEventListener('input', () => renderHistory(historySearch.value));
         themeBtn.addEventListener('click', cycleTheme);
         document.querySelectorAll('.chip-btn').forEach(b => {
             b.addEventListener('click', () => {
