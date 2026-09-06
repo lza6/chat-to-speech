@@ -98,7 +98,7 @@ python -m http.server 8765
 3. **iOS Safari 自动播放**：Web Audio + data: URI 双保险，极端情况仍需用户二次点击。未在真机 iOS 实测。
 4. **库请求体无法干预**：库自带的 per-message 🔊 朗读按钮走库内部 speakText，前端无法注入 enable_thinking 参数。闭环①库内朗读可能仍带思考过程，闭环③整页朗读已前端过滤。
 5. **CSP 含 'unsafe-inline'**：因 uncloseai.js 需内联配置脚本。script-src 已白名单限制。
-6. **无 Service Worker**：离线缓存留作 v4 升级路径（P3）。
+6. **Service Worker 已集成**：v3 P3-1 启用 `sw.js`（网络优先回退缓存，commit `f8d71b8`，T17 测注册通过）。跨域 CDN 资源当前不缓存（留作 v4 P1-1 升级）。
 
 ## v3 关键修复（P0/P1）
 
@@ -130,12 +130,17 @@ python -m http.server 8765
 ├── README.md             # 本文件
 ├── workflow_status.md    # v2 历史审计
 ├── 变更报告.html          # v2 变更报告
-├── e2e-test.cjs          # v3 E2E 测试套件（Playwright，13 项）
-├── 优化计划/              # 改进指南
-│   └── 下一步改进指南.md
+├── e2e-test.cjs          # v3 E2E 测试套件（Playwright，17 项 T1-T17）
+├── unit-test.cjs         # v4 P0-2 推理清洗单元测试（node:test，U_CLEAN_1-4 + 22 样本夹具）
+├── package.json          # 声明 playwright 依赖（无构建工具链，保持单文件部署）
+├── test-cases/            # 测试夹具
+│   └── 推理清洗样本.json   # 22 真实推理回复样本（U_CLEAN_4 回归保护）
+├── 优化计划/              # 改进指南 + v3 基线归档
+│   ├── 下一步改进指南.md                      # ★ v3→v4→v5→v6+ 全栈迭代路线图（重写版，下游以此为准）
+│   └── 下一步改进指南-v3基线归档.md            # v3 时代对 v4 的初步规划（历史参考，部分描述已过时，如 cleanAssistantText 误记为 3 前缀）
 └── 上游资料/              # 11 份原始文档
 ```
 
 ---
 
-*v3 基于 2026-09-06 实测：TTS 端点 502 持续宕机、Hermes CORS 已放行、模型变 Qwen3.6 推理型。E2E 13/13 通过。*
+*v3 基于 2026-09-06 实测：TTS 端点 502 持续宕机、Hermes CORS 已放行、模型变 Qwen3.6 推理型。**v4 Phase 0.2 复跑确认（2026-09-07）**：E2E 套件 17 项（T1-T17）真实复跑 **17/17 PASS**；单元测试 U_CLEAN_1-4（22 样本夹具）+ U_POOL_1-4（并发池 + 429 退避）真实复跑 **11/11 PASS**。pLimit `Object.assign`→`Object.defineProperties` getter bug 已修复（U_POOL_3 回归保护）。*

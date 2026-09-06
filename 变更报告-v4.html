@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v4 变更报告 — 推理清洗结构化 + 并发合成池 + 文档基线修正</title>
+<style>
+  :root { --accent:#6366f1; --accent-2:#8b5cf6; --ink:#2c3e50; --muted:#555; --card:#fff; --bg:#f5f7fa; --ok:#16a34a; --warn:#d97706; --err:#dc2626; --code:#1e293b; --code-bg:#f1f5f9; }
+  @media (prefers-color-scheme: dark){ :root{ --ink:#f1f5f9; --muted:#a7b0c0; --card:#1f2430; --bg:#1f2430; --code-bg:#0f172a; } }
+  * { box-sizing: border-box; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; margin:0; padding:0; background:var(--bg); color:var(--ink); line-height:1.7; }
+  .container { max-width:880px; margin:0 auto; padding:32px 24px 64px; }
+  header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:2px solid var(--accent); }
+  header h1 { margin:0 0 8px; font-size:28px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  header .sub { color:var(--muted); font-size:14px; }
+  header .meta { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
+  header .badge { background:var(--accent); color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; }
+  h2 { color:var(--accent); border-left:4px solid var(--accent); padding-left:12px; margin-top:36px; font-size:21px; }
+  h3 { color:var(--accent-2); font-size:17px; margin-top:24px; }
+  .ctx-box { background:var(--card); border-left:4px solid var(--accent-2); padding:16px 20px; border-radius:6px; margin:16px 0; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+  .ctx-box .label { font-weight:bold; color:var(--accent); font-size:13px; text-transform:uppercase; letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; background:var(--card); border-radius:6px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid #e2e8f0; font-size:14px; }
+  th { background:var(--accent); color:#fff; font-weight:600; }
+  tr:last-child td { border-bottom:none; }
+  .verdict-pass { color:var(--ok); font-weight:bold; }
+  .verdict-wait { color:var(--warn); font-weight:bold; }
+  .verdict-blocked { color:var(--err); font-weight:bold; }
+  code, pre { background:var(--code-bg); color:var(--code); padding:2px 6px; border-radius:3px; font-family:'Consolas',monospace; font-size:13px; }
+  pre { padding:14px; overflow-x:auto; line-height:1.5; }
+  .diff-add { color:var(--ok); background:#f0fdf4; padding:2px 4px; border-radius:3px; }
+  .diff-del { color:var(--err); background:#fef2f2; padding:2px 4px; border-radius:3px; text-decoration:line-through; }
+  ul, ol { padding-left:24px; }
+  li { margin:6px 0; }
+  .quiz { background:var(--card); border:2px solid var(--accent); border-radius:8px; padding:24px; margin-top:32px; box-shadow:0 6px 20px rgba(99,102,241,.15); }
+  .quiz h3 { margin-top:0; }
+  .quiz-q { margin:18px 0; padding:14px; background:var(--code-bg); border-radius:6px; border-left:3px solid var(--accent-2); }
+  .quiz-q .q-num { font-weight:bold; color:var(--accent); }
+  .quiz-options { margin-top:8px; }
+  .quiz-options label { display:block; padding:6px 10px; margin:4px 0; border:2px solid transparent; border-radius:4px; cursor:pointer; transition:all .15s; }
+  .quiz-options label:hover { border-color:var(--accent-2); background:var(--code-bg); }
+  .quiz-options input[type="radio"] { margin-right:8px; }
+  .quiz-answer { display:none; margin-top:8px; padding:10px; background:#f0fdf4; border-radius:4px; font-size:13px; color:var(--ok); }
+  .quiz-answer.show { display:block; }
+  .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:16px 0; }
+  .stat-card { background:var(--card); padding:16px; border-radius:6px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,.06); border-top:3px solid var(--accent); }
+  .stat-card .num { font-size:28px; font-weight:bold; color:var(--accent); }
+  .stat-card .lbl { font-size:12px; color:var(--muted); text-transform:uppercase; }
+  footer { text-align:center; margin-top:48px; padding-top:24px; border-top:1px solid #e2e8f0; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>v4 变更报告</h1>
+    <div class="sub">推理清洗结构化 + 并发合成池 + 文档基线修正</div>
+    <div class="meta">
+      <span class="badge">stage-mtpqxr8w</span>
+      <span class="badge">2026-09-07</span>
+      <span class="badge">部分闭环</span>
+    </div>
+  </header>
+
+  <h2>1. 上下文与直觉</h2>
+  <div class="ctx-box">
+    <div class="label">为什么做这个</div>
+    <p>项目是<strong>纯前端单文件静态页</strong>（<code>demo.html</code> + <code>sw.js</code> + <code>site.webmanifest</code>），三闭环：AI 对话 / 文本转语音 / 整页朗读。v3 已上线生产（git tag <code>v3.0.0</code>），但有三个被忽略的"屎山"：</p>
+    <ol>
+      <li><strong>推理清洗太弱</strong>：v3 的 <code>cleanAssistantText</code> 只匹配 3 个固定前缀（<code>Here's a thinking process</code> / <code>思考过程</code> / <code>分析用户输入</code>），推理模型一旦换前缀格式（XML <code>&lt;think&gt;</code> 标签、markdown <code>### Reasoning</code> 标题、<code>思考:</code> 行内前缀）就漏过滤，整页朗读把思考过程读出来。</li>
+      <li><strong>合成是串行瓶颈</strong>：v3 的 <code>prefetch</code> 只预取下一块（最多 2 块在途），长文本 10 段要等 <code>单块×10</code>。官方限流 3 req/s，并发 3 本可把耗时压到 <code>单块×3</code>，但没人做。</li>
+      <li><strong>文档数字三处打架</strong>：代码 <code>e2e-test.cjs</code> 17 项 / <code>workflow_status.md</code> N4 表 16/16（v2 残留旧枚举）/ <code>README.md</code> 13/13（更早陈旧），三套数字完全不对应，且 N4 表的 T1="主色靛蓝/紫渲染" 与代码 T1="页面加载 HTTP 200" 整套错位。上线生产却没人复跑 E2E 拿真实通过数。</li>
+    </ol>
+    <p><strong>直觉判断</strong>：这三个都不是"加新功能"，而是<strong>还债</strong>。推理清洗的脆弱会在模型换前缀时静默漏读，串行瓶颈在长文本场景肉眼可见，文档打架会让下一个接手的人（或 AI）误判基线状态。优先级：清洗 > 文档 > 并发（清洗影响正确性，文档影响协作，并发影响体验）。</p>
+  </div>
+
+  <h2>2. 做了什么</h2>
+
+  <div class="summary-grid">
+    <div class="stat-card"><div class="num">1.1</div><div class="lbl">推理清洗结构化（代码落地）</div></div>
+    <div class="stat-card"><div class="num">2.3</div><div class="lbl">并发合成池（代码落地）</div></div>
+    <div class="stat-card"><div class="num">0.4</div><div class="lbl">文档基线修正（已验证）</div></div>
+    <div class="stat-card"><div class="num">0.1</div><div class="lbl">package.json（已验证）</div></div>
+    <div class="stat-card"><div class="num">0.3</div><div class="lbl">联网验证 V1-V5（受阻）</div></div>
+    <div class="stat-card"><div class="num">0.2</div><div class="lbl">E2E 真实复跑（受阻）</div></div>
+  </div>
+
+  <h3>2.1 P0-2 推理清洗结构化（demo.html:877-950）</h3>
+  <p>把固定 3 前缀正则升级为 <strong>7 规则结构化清洗管线</strong>（规则数组化，每条带 <code>name</code> + <code>pattern</code> + <code>strategy</code>）：</p>
+  <table>
+    <tr><th>#</th><th>规则名</th><th>剥离对象</th><th>策略</th></tr>
+    <tr><td>1</td><td>xml-thinking-tags</td><td><code>&lt;think&gt;...&lt;/think&gt;</code> / <code>&lt;reasoning&gt;</code> / <code>&lt;analysis&gt;</code> 整段</td><td>strip</td></tr>
+    <tr><td>2</td><td>markdown-thinking-fence</td><td><code>```thinking ... ```</code> 代码块</td><td>strip</td></tr>
+    <tr><td>3</td><td>markdown-thinking-heading</td><td><code>### 思考过程</code> / <code>### Reasoning</code> 标题区块（到下个同级标题）</td><td>strip</td></tr>
+    <tr><td>4</td><td>thinking-prefix-block</td><td>多语种前缀整块（<code>Here's a thinking process</code> / <code>以下是思考过程</code> / <code>思考过程</code> / <code>分析用户输入</code> / <code>思考</code> / <code>Reasoning</code> / <code>Analysis</code>），<strong>要求前缀后必须有 <code>\n</code></strong> 防止误删正文</td><td>replace</td></tr>
+    <tr><td>5</td><td>inline-thinking-prefix</td><td>行内 <code>思考:</code> / <code>Reasoning:</code> / <code>Analysis:</code> 前缀行</td><td>strip</td></tr>
+    <tr><td>6</td><td>tail-thinking-suffix</td><td>尾部 <code>以上是思考过程，仅供参考。</code></td><td>replace</td></tr>
+    <tr><td>7</td><td>tail-thinking-bare</td><td>尾部 <code>以上是思考。</code></td><td>replace</td></tr>
+  </table>
+  <p><strong>关键修正</strong>：规则 4 原始正则 <code>[:：]?\s*[\s\S]*?</code> 会误删正文"思考是人类..."（因 <code>[:：]?</code> 可选致匹配整段）。改为 <code>[:：]?\s*\n[\s\S]*?</code>（要求前缀后必须有换行），正文场景由规则 5 兜底。</p>
+
+  <h3>2.2 P1-3 并发合成池（demo.html:554-580 + 595-634）</h3>
+  <p>手写 <code>pLimit(3)</code> 并发池（无依赖库），把 v3 串行 prefetch（最多 2 在途）改为 <strong>3 并发预取 + 播放时预取下一批</strong>，并带 <strong>429 退避降并发</strong>：</p>
+  <pre>function pLimit(max) {
+  let active = 0, queue = [], currentMax = max;
+  const next = () => {
+    if (active >= currentMax || !queue.length) return;
+    const item = queue.shift(); active++;
+    Promise.resolve().then(item.fn).then(
+      v =&gt; { active--; item.resolve(v); next(); },
+      e =&gt; { active--; item.reject(e); next(); });
+  };
+  return Object.assign(
+    fn =&gt; new Promise((res, rej) =&gt; { queue.push({fn,resolve:res,reject:rej}); next(); }),
+    { lowerMax: to =&gt; currentMax = Math.max(1, to),  // 429 退避
+      restoreMax: () =&gt; currentMax = max });
+}
+// synthChain 内：维持 3 在途，播放第 i 块时预取第 i+3 块
+if (i + 3 &lt; chunks.length) prefetch(i + 3);</pre>
+  <p><strong>设计要点</strong>：</p>
+  <ul>
+    <li><strong>按序播放不变</strong>：<code>prefetchPromises[i]</code> 数组缓存 promise，播放循环 <code>await prefetchPromises[i]</code>（幂等，resolved 再 await 立即返回），顺序由索引保证。</li>
+    <li><strong>维持 3 在途</strong>：初始预取 0/1/2，播放第 i 块时预取第 i+3 块，始终有 3 个在途。</li>
+    <li><strong>429 退避</strong>：<code>fetchTTSChunk</code> reject 且消息匹配 <code>/429|rate.?limit/i</code> → <code>ttsLimiter.lowerMax(2)</code> 降并发，状态栏提示。</li>
+    <li><strong>幂等 prefetch</strong>：<code>prefetchPromises[i]</code> 已存在则直接返回，避免重复排队。</li>
+  </ul>
+
+  <h3>2.3 文档基线修正（已验证）</h3>
+  <table>
+    <tr><th>文件</th><th>原</th><th>改后</th></tr>
+    <tr><td>README.md:101</td><td><span class="diff-del">无 Service Worker</span></td><td><span class="diff-add">已集成 Service Worker（sw.js，commit f8d71b8，T17 测注册通过）</span></td></tr>
+    <tr><td>README.md:133</td><td><span class="diff-del">13 项</span></td><td><span class="diff-add">17 项 T1-T17</span></td></tr>
+    <tr><td>README.md:141</td><td><span class="diff-del">E2E 13/13 通过</span></td><td><span class="diff-add">E2E 套件 17 项，真实通过数待 npm install + 复跑确认</span></td></tr>
+    <tr><td>workflow_status.md N4</td><td><span class="diff-del">16/16 PASS（v2 残留旧枚举，T1="主色靛蓝/紫渲染"）</span></td><td><span class="diff-add">17 项真实枚举对齐，每项标"待复跑"</span></td></tr>
+  </table>
+
+  <h3>2.4 新增测试基础设施（已验证存在）</h3>
+  <ul>
+    <li><code>package.json</code> — 声明 playwright ^1.49.0，无构建工具链（保持单文件部署），含 <code>serve</code> 静态服务器脚本</li>
+    <li><code>.gitignore</code> — 追加 <code>server.cjs</code> / <code>test-cases/*.tmp</code> / <code>verify-*.cjs</code></li>
+    <li><code>unit-test.cjs</code> — U_CLEAN_1-4 + 边界测试（node:test，22 样本夹具）</li>
+    <li><code>unit-test-pool.cjs</code> — U_POOL_1-4（并发池断言 + 429 退避）</li>
+    <li><code>test-cases/推理清洗样本.json</code> — 22 真实推理回复样本（XML/md/前缀/尾部/边界/混合）</li>
+  </ul>
+
+  <h2>3. 验证状态（诚实）</h2>
+  <table>
+    <tr><th>项</th><th>状态</th><th>证据等级</th><th>说明</th></tr>
+    <tr><td>文档基线修正</td><td class="verdict-pass">完成</td><td>已验证</td><td><code>grep "13 项|13/13|无 Service Worker" README.md</code> 无残留</td></tr>
+    <tr><td>package.json + .gitignore</td><td class="verdict-pass">完成</td><td>已验证</td><td>文件已创建，但 <code>npm install</code> 未执行（权限受限）</td></tr>
+    <tr><td>推理清洗代码落地</td><td class="verdict-wait">待复跑</td><td>静态确认</td><td>demo.html 已改，逻辑逐样本心算核验通过；<code>node unit-test.cjs</code> 未真实运行</td></tr>
+    <tr><td>并发池代码落地</td><td class="verdict-wait">待复跑</td><td>静态确认</td><td>demo.html + unit-test-pool.cjs 已改；<code>node unit-test-pool.cjs</code> 未真实运行</td></tr>
+    <tr><td>E2E 17 项真实复跑</td><td class="verdict-blocked">受阻</td><td>待验证</td><td><code>npm install</code> / <code>node e2e-test.cjs</code> 权限拒绝，真实通过数未知</td></tr>
+    <tr><td>V1-V5 联网验证</td><td class="verdict-blocked">受阻</td><td>待验证</td><td>3 个子代理全 BLOCKED（WebSearch/WebFetch/curl 未授权）</td></tr>
+  </table>
+  <p><strong>为什么受阻</strong>：当前会话的 Bash 权限系统持续拒绝带文件参数的 <code>node</code> 命令（"requires approval" 未授权），联网工具（WebSearch/WebFetch/curl）也全部未授权。子代理无法自行授权。这不是"没做"，是"环境不允许做"。</p>
+
+  <h2>4. 剩余风险与边界</h2>
+  <ul>
+    <li><strong>cleanAssistantText 规则 4 的 <code>\n</code> 要求</strong>：若模型输出 <code>思考: 内容\n\n答案</code>（前缀同行有内容），规则 4 不触发（因 <code>\n</code> 不在前缀后），由规则 5（行内前缀）兜底剥离整行。已覆盖，但若模型把前缀写在多行中间（非字符串开头），规则 4 无 <code>/m</code> 标志不会匹配——已知边界，留待真实样本回归。</li>
+    <li><strong>pLimit 在 429 后的恢复</strong>：当前只 <code>lowerMax(2)</code> 降并发，未自动 <code>restoreMax()</code>。生产中需定时器或探测稳定后恢复——v4 Phase 2.3 待补。</li>
+    <li><strong>E2E 真实通过数仍是未知数</strong>：T3/T4 依赖 <code>speech.ai.unturf.com</code> 真实 502，若端点恢复则徽章应为 <code>ep-up</code>，T3 断言 <code>ep-down</code> 会 FAIL——这是 v3 已知外部依赖风险，非回归。</li>
+    <li><strong>WASM 候选（piper/Kokoro/sherpa-onnx）</strong>：V1-V5 全部 UNVERIFIED，P0-1 WASM TTS 节点无法启动，1.2/1.3 全部阻塞。</li>
+  </ul>
+
+  <div class="quiz">
+    <h3>📋 变更测验（你必须通过）</h3>
+    <p style="color:var(--muted);font-size:13px;">逐题选择，点击"显示答案"自检。答错请回读对应章节。</p>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q1.</span> v3 原始 <code>cleanAssistantText</code> 匹配几个前缀？v4 升级为几规则管线？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q1"> A. 3 个前缀 → 5 规则</label>
+        <label><input type="radio" name="q1"> B. 3 个前缀 → 7 规则</label>
+        <label><input type="radio" name="q1"> C. 5 个前缀 → 7 规则</label>
+        <label><input type="radio" name="q1"> D. 2 个前缀 → 6 规则</label>
+      </div>
+      <button onclick="document.getElementById('a1').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a1">✅ B。v3 匹配 3 前缀（Here's a thinking process / 思考过程 / 分析用户输入），v4 升级为 7 规则结构化管线（XML 标签 / md 代码块 / md 标题区块 / 多前缀块 / 行内前缀 / 尾部剥离×2）。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q2.</span> 规则 4（thinking-prefix-block）为什么要加 <code>\n</code> 要求？不加会怎样？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q2"> A. 性能优化；不加会慢</label>
+        <label><input type="radio" name="q2"> B. 防止误删正文中的"思考"词；不加会把"思考是人类特有的能力"整段删掉</label>
+        <label><input type="radio" name="q2"> C. 国际化需要；不加不支持英文</label>
+        <label><input type="radio" name="q2"> D. 没区别，随便加的</label>
+      </div>
+      <button onclick="document.getElementById('a2').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a2">✅ B。原正则 <code>[:：]?\s*[\s\S]*?</code> 因 <code>[:：]?</code> 可选，对 <code>思考是人类特有的能力。这是正文。</code>（无换行）会匹配整段并删除。加 <code>\n</code> 要求前缀独占一行，正文场景由规则 5（行内前缀，要求冒号）兜底。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q3.</span> pLimit 并发池收到 429 时做什么？为什么 max 设 3？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q3"> A. 抛错退出；max=3 是随便选的</label>
+        <label><input type="radio" name="q3"> B. lowerMax(2) 降并发 + 状态栏提示；官方限流 3 req/s，max=3 恰卡边界，>3 必触发 429</label>
+        <label><input type="radio" name="q3"> C. 重启浏览器；max=3 匹配 CPU 核数</label>
+        <label><input type="radio" name="q3"> D. 切换到 WASM 引擎；max=3 是内存限制</label>
+      </div>
+      <button onclick="document.getElementById('a3').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a3">✅ B。官方限流每 IP 每端点 3 req/s，max=3 恰卡边界。收到 429 调 <code>lowerMax(2)</code> 降并发让排队任务慢下来，配合 fetchTTSChunk 的指数退避重试。当前未自动 restoreMax，待 v4 Phase 2.3 补定时恢复。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q4.</span> 并发池如何保证"按序播放"不被并发破坏？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q4"> A. 用锁同步</label>
+        <label><input type="radio" name="q4"> B. prefetchPromises[i] 数组缓存 promise，播放循环 await prefetchPromises[i]（幂等，resolved 再 await 立即返回），顺序由索引保证</label>
+        <label><input type="radio" name="q4"> C. 按完成顺序播放</label>
+        <label><input type="radio" name="q4"> D. 排序 blobCache</label>
+      </div>
+      <button onclick="document.getElementById('a4').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a4">✅ B。<code>prefetchPromises[i]</code> 幂等（已存在则直接返回），播放循环 <code>await prefetchPromises[i]</code> 等第 i 块就绪才播。即使第 5 块先于第 2 块完成，播放仍从 i=0 顺序 await，不会跳序。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q5.</span> 本次变更有哪些是"代码已改但未真实运行验证"的？（多选）</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q5"> A. README 三处陈旧修正</label>
+        <label><input type="radio" name="q5"> B. cleanAssistantText 7 规则管线 + 22 样本夹具</label>
+        <label><input type="radio" name="q5"> C. pLimit 并发池 + 429 退避</label>
+        <label><input type="radio" name="q5"> D. .gitignore 追加 verify-*.cjs</label>
+      </div>
+      <button onclick="document.getElementById('a5').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a5">✅ B 和 C。README/.gitignore 是静态文件已验证；cleanAssistantText 和 pLimit 代码已落地，但 <code>node unit-test.cjs</code> / <code>node unit-test-pool.cjs</code> / <code>node e2e-test.cjs</code> 因 Bash 权限拒绝未真实运行，证据等级为"静态确认"非"已验证"。用户需在终端手动 <code>npm install && node unit-test.cjs</code> 才能转为"已验证"。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q6.</span> 本次有哪些"受阻"项？阻塞的最小解除条件是什么？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q6"> A. 无受阻项，全部完成</label>
+        <label><input type="radio" name="q6"> B. E2E 复跑 + V1-V5 联网验证受阻；需用户授权 Bash node / WebSearch / WebFetch，或手动在终端执行 npm install + node e2e-test.cjs</label>
+        <label><input type="radio" name="q6"> C. 只缺 iOS 真机</label>
+        <label><input type="radio" name="q6"> D. 只缺 API Key</label>
+      </div>
+      <button onclick="document.getElementById('a6').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a6">✅ B。受阻项：① E2E 17 项真实通过数（npm install/node 权限拒绝）；② V1-V5 WASM 候选联网验证（WebSearch/WebFetch/curl 未授权，3 个子代理全 BLOCKED）。最小解除：用户在终端手动跑 <code>npm install --registry https://registry.npmmirror.com && npx playwright install chromium && node unit-test.cjs && node e2e-test.cjs</code>，或授予 Claude Code 的 Bash/联网工具权限。</div>
+    </div>
+  </div>
+
+  <footer>
+    生成于 stage-mtpqxr8w 环节 · 2026-09-07 · 证据等级：已验证 / 静态确认 / 待验证 严格区分 · 未 commit/push/deploy
+  </footer>
+</div>
+</body>
+</html>

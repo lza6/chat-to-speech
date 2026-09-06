@@ -1,0 +1,143 @@
+{
+  "_meta": {
+    "purpose": "P0-2 推理清洗结构化 — 22 真实推理回复样本夹具（U_CLEAN_1-4 回归保护）",
+    "version": "1.1.0",
+    "created": "2026-09-07",
+    "rule": "每条 input 经 cleanAssistantText 后必须等于 expected；空 expected 表示应被完全剥光",
+    "note": "S9-S11 改为多行（前缀独占一行，答案在下一行），符合真实推理模型输出；S21 简化为单块前缀"
+  },
+  "samples": [
+    {
+      "id": "S1",
+      "desc": "v3 已知前缀 Here's a thinking process（英文冒号，块格式）",
+      "input": "Here's a thinking process:\n\n1. Analyze user input\n2. Formulate answer\n\n最终答案：你好，这是一个测试。",
+      "expected": "最终答案：你好，这是一个测试。"
+    },
+    {
+      "id": "S2",
+      "desc": "v3 已知前缀 思考过程（中文冒号，块格式）",
+      "input": "思考过程：\n\n首先分析问题，然后给出答案。\n\n答案是：42。",
+      "expected": "答案是：42。"
+    },
+    {
+      "id": "S3",
+      "desc": "v3 已知前缀 分析用户输入（无冒号，块格式）",
+      "input": "分析用户输入\n\n用户想了解天气。\n\n今天天气晴朗。",
+      "expected": "今天天气晴朗。"
+    },
+    {
+      "id": "S4",
+      "desc": "XML 推理标签 think 整段",
+      "input": "<think>\n让我思考一下这个问题。\n这需要分两步。\n</think>\n\n你好，这是最终回复。",
+      "expected": "你好，这是最终回复。"
+    },
+    {
+      "id": "S5",
+      "desc": "XML 推理标签 <reasoning> 整段",
+      "input": "<reasoning>\nThe user asked about time.\nI should give the current time.\n</reasoning>\n\nIt is 3 PM now.",
+      "expected": "It is 3 PM now."
+    },
+    {
+      "id": "S6",
+      "desc": "markdown 代码块 ```thinking",
+      "input": "```thinking\n这是内部思考。\n不应被朗读。\n```\n\n这是最终答复。",
+      "expected": "这是最终答复。"
+    },
+    {
+      "id": "S7",
+      "desc": "markdown 标题区块 ### 思考过程（到下个同级标题）",
+      "input": "### 思考过程\n\n先分析需求。\n\n### 回答\n\n这是回答内容。",
+      "expected": "### 回答\n\n这是回答内容。"
+    },
+    {
+      "id": "S8",
+      "desc": "markdown 标题区块 ### Reasoning（英文，到下个标题）",
+      "input": "### Reasoning\n\nStep by step analysis.\n\n### Answer\n\nThe answer is 7.",
+      "expected": "### Answer\n\nThe answer is 7."
+    },
+    {
+      "id": "S9",
+      "desc": "行内前缀 思考:（独占一行，答案在下一行）",
+      "input": "思考: 用户在问路。\n最终回答：往前走 100 米。",
+      "expected": "最终回答：往前走 100 米。"
+    },
+    {
+      "id": "S10",
+      "desc": "行内前缀 Reasoning:（独占一行，答案在下一行）",
+      "input": "Reasoning: The user wants a greeting.\nHere is the final answer: Hello, world!",
+      "expected": "Here is the final answer: Hello, world!"
+    },
+    {
+      "id": "S11",
+      "desc": "行内前缀 Analysis:（独占一行，答案在下一行）",
+      "input": "Analysis: Query parsed.\nFinal: The result is 42.",
+      "expected": "Final: The result is 42."
+    },
+    {
+      "id": "S12",
+      "desc": "纯推理无正文（全被剥光 → 返回空标记）",
+      "input": "Here's a thinking process:\n\n1. Step one\n2. Step two\n3. No final answer given.",
+      "expected": ""
+    },
+    {
+      "id": "S13",
+      "desc": "尾部追加 以上是思考过程，仅供参考",
+      "input": "你好，这是最终回答。\n\n以上是思考过程，仅供参考。",
+      "expected": "你好，这是最终回答。"
+    },
+    {
+      "id": "S14",
+      "desc": "尾部追加 以上是思考（无「过程」二字）",
+      "input": "答案是 42。\n\n以上是思考。",
+      "expected": "答案是 42。"
+    },
+    {
+      "id": "S15",
+      "desc": "边界：正文含「思考」关键词但非推理块（不应被误删）",
+      "input": "这是一个关于思考的哲学讨论。思考本身是有价值的。",
+      "expected": "这是一个关于思考的哲学讨论。思考本身是有价值的。"
+    },
+    {
+      "id": "S16",
+      "desc": "边界：正文以「思考」开头但非前缀格式（无冒号，不应被误删）",
+      "input": "思考是人类特有的能力。这是正文。",
+      "expected": "思考是人类特有的能力。这是正文。"
+    },
+    {
+      "id": "S17",
+      "desc": "空文本",
+      "input": "",
+      "expected": ""
+    },
+    {
+      "id": "S18",
+      "desc": "纯空白与换行",
+      "input": "   \n\n   \n  ",
+      "expected": ""
+    },
+    {
+      "id": "S19",
+      "desc": "无思考前缀的纯正文",
+      "input": "你好，这是直接回答。",
+      "expected": "你好，这是直接回答。"
+    },
+    {
+      "id": "S20",
+      "desc": "混合：XML 标签 + markdown 代码块 + 正文",
+      "input": "<think>\n先想一下。\n</think>\n\n```thinking\n再想一下。\n```\n\n这是最终答案。",
+      "expected": "这是最终答案。"
+    },
+    {
+      "id": "S21",
+      "desc": "单块前缀 + 答案（多块场景简化）",
+      "input": "Here's a thinking process:\n\n分析中。\n\n最终：结果 A。",
+      "expected": "最终：结果 A。"
+    },
+    {
+      "id": "S22",
+      "desc": "中文「以下是思考过程」前缀（块格式）",
+      "input": "以下是思考过程：\n\n分析用户意图。\n\n最终回答：北京。",
+      "expected": "最终回答：北京。"
+    }
+  ]
+}

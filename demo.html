@@ -551,6 +551,35 @@
             showNotice('当前无可用语音引擎。');
         }
 
+        // P1-3 并发池（v4 升级）：手写 pLimit，无依赖库，与 unit-test-pool.cjs 同步
+        // 语义：构造 max 并发池，每调用返回的 fn 排队执行，任一时刻最多 max 个在跑
+        // 429 退避：lowerMax(2) 降并发，restoreMax() 恢复
+        // 注意：用 Object.defineProperties 而非 Object.assign，否则 getter 被读取一次为静态值，
+        // lowerMax 后 currentMax 不反映变更（U_POOL_3 回归保护此 bug）
+        function pLimit(max) {
+            let active = 0;
+            const queue = [];
+            let currentMax = max;
+            const next = () => {
+                if (active >= currentMax || queue.length === 0) return;
+                const item = queue.shift();
+                active++;
+                Promise.resolve().then(item.fn).then(
+                    (v) => { active--; item.resolve(v); next(); },
+                    (e) => { active--; item.reject(e); next(); }
+                );
+            };
+            const limiter = (fn) => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next(); });
+            Object.defineProperties(limiter, {
+                activeCount: { get: () => active },
+                pendingCount: { get: () => queue.length },
+                lowerMax: { value: (to) => { currentMax = Math.max(1, to); } },
+                restoreMax: { value: () => { currentMax = max; } },
+                currentMax: { get: () => currentMax }
+            });
+            return limiter;
+        }
+
         // 调度器：依次尝试引擎1→2→3，状态栏透明告知
         async function synthChain(text, voice, speed, myId) {
             currentEngine = 0;
@@ -564,21 +593,38 @@
                     progressEl.max = chunks.length;
                     progressEl.value = 0;
                     audioBlobs = [];
-                    // 复用原 fetchTTSChunk + playBlob 流水线
+                    // P1-3 并发合成池（v4 升级）：限制并发 3（与官方限流 3 req/s 对齐），
+                    // 收到 429 立即降 max=2 + 指数退避重试（fetchTTSChunk 已具备退避基座）。
+                    // 按序播放不变：播放循环 await prefetchPromises[i]（幂等，resolved promise 再 await 立即返回）。
                     const blobCache = new Array(chunks.length).fill(null);
-                    const prefetch = async (i) => {
-                        if (i >= chunks.length || blobCache[i] || myId !== speakRequestId) return;
-                        try { blobCache[i] = await fetchTTSChunk(chunks[i], voice, speed); }
-                        catch (e) { blobCache[i] = e; }
+                    const prefetchPromises = new Array(chunks.length).fill(null);
+                    const ttsLimiter = pLimit(3);
+                    const prefetch = (i) => {
+                        if (i < 0 || i >= chunks.length || prefetchPromises[i] || myId !== speakRequestId) return prefetchPromises[i] || Promise.resolve();
+                        prefetchPromises[i] = ttsLimiter(() => fetchTTSChunk(chunks[i], voice, speed).then(
+                            (b) => { blobCache[i] = b; },
+                            (e) => {
+                                // 429 退避：降并发到 2，让正在排队的任务慢下来
+                                if (e && /429|rate.?limit/i.test(e.message || String(e))) {
+                                    ttsLimiter.lowerMax(2);
+                                    setStatus('⚠️ 端点限流，已自动降并发并重试…');
+                                }
+                                blobCache[i] = e;
+                            }
+                        ));
+                        return prefetchPromises[i];
                     };
-                    await prefetch(0);
+                    // 预取前 3 块（并发启动，不 await，与播放重叠）
+                    for (let i = 0; i < Math.min(3, chunks.length); i++) prefetch(i);
                     for (let i = 0; i < chunks.length; i++) {
                         if (isStopped || myId !== speakRequestId) break;
-                        if (blobCache[i] == null) await prefetch(i);
+                        // 等第 i 块就绪（幂等 await：resolved promise 立即返回）
+                        await prefetchPromises[i];
                         if (isStopped || myId !== speakRequestId) break;
                         if (blobCache[i] instanceof Error) throw blobCache[i];
                         if (!blobCache[i]) break;
-                        if (i + 1 < chunks.length) prefetch(i + 1);
+                        // 维持 3 在途：播放第 i 块时预取第 i+3 块
+                        if (i + 3 < chunks.length) prefetch(i + 3);
                         isSynthesizing = false;
                         setStatus(`🎤 在线合成播放中…（第 ${i + 1}/${chunks.length} 段）`);
                         progressEl.value = i;
@@ -877,14 +923,33 @@
         // ============ 提取可朗读正文（排除 UI 文案） ============
         // 只朗读用户真正关心的内容：标题/简介 + TTS 输入框 + 聊天回复，
         // 排除按钮文字、状态栏、计数器、快捷键提示等 UI 噪声。
-        // P0-3: 增加推理模型思考过程清洗（兜底，因库无法干预内部请求体加 enable_thinking）
+        // P0-2: 推理清洗结构化（v4 升级）— 从固定 3 前缀白名单升级为多层结构化清洗管线。
+        // 规则数组化：XML 标签 / markdown 区块 / 标题区块 / 多语种多前缀 / 行内前缀 / 尾部剥离 / 空结果回退。
+        // 与 unit-test.cjs 同步，U_CLEAN_1-4 + 22 样本夹具回归保护（test-cases/推理清洗样本.json）。
+        const CLEAN_RULES = [
+            // 1. XML 推理标签整段剥离（<think>...</think> / <reasoning>...</reasoning> / <analysis>...</analysis>）
+            { name: 'xml-thinking-tags', pattern: /<(?:think|reasoning|analysis)>[\s\S]*?<\/(?:think|reasoning|analysis)>\s*/gi, strategy: 'strip' },
+            // 2. markdown 代码块剥离（```thinking ... ``` / ```reasoning ... ``` / ```analysis ... ```）
+            { name: 'markdown-thinking-fence', pattern: /```(?:thinking|reasoning|analysis)[\s\S]*?```\s*/gi, strategy: 'strip' },
+            // 3. markdown 标题区块剥离（### 思考过程 / ### Reasoning / ### Analysis 到下个同级标题或结尾）
+            { name: 'markdown-thinking-heading', pattern: /^#{1,6}\s*(?:思考过程|思考|Reasoning|Analysis|推理过程)[:：]?\s*\n[\s\S]*?(?=^#{1,6}\s|\n\s*$|$)/gim, strategy: 'strip' },
+            // 4. 多语种多前缀白名单整块剥离（前缀独占一行，到首个空行；要求 \n 防止误匹配正文中的"思考"词）
+            { name: 'thinking-prefix-block', pattern: /^(?:Here's a thinking process|以下是思考过程|思考过程|分析用户输入|思考|Reasoning|Analysis)[:：]?\s*\n[\s\S]*?(?=\n\s*\n|$)/i, strategy: 'replace' },
+            // 5. 行首 "思考:" / "Reasoning:" / "Analysis:" 前缀行剥离（直到换行）
+            { name: 'inline-thinking-prefix', pattern: /^(?:思考|Reasoning|Analysis)\s*[:：]\s*[^\n]*\n?/gim, strategy: 'strip' },
+            // 6. 尾部剥离（"以上是思考过程，仅供参考。" / "以上是思考。"）
+            { name: 'tail-thinking-suffix', pattern: /\n?\s*以上是思考(?:过程)?[，,。]?\s*仅供参考[。.]?\s*$/i, strategy: 'replace' },
+            { name: 'tail-thinking-bare', pattern: /\n?\s*以上是思考[。.]?\s*$/i, strategy: 'replace' }
+        ];
         function cleanAssistantText(text) {
             if (!text) return '';
             let t = text;
-            // 剥离"Here's a thinking process:"等推理前缀整块（到首个空行）
-            const thinkRe = /^(?:Here's a thinking process|思考过程|分析用户输入)[:：]?\s*[\s\S]*?(?=\n\s*\n|$)/i;
-            t = t.replace(thinkRe, '').trim();
-            // 若剥离后为空（整段都是思考），返回空标记，上层据此跳过朗读
+            for (const rule of CLEAN_RULES) {
+                // strip 与 replace 都是把匹配部分移除；区分策略仅为可读性，行为一致
+                t = t.replace(rule.pattern, '');
+            }
+            t = t.trim();
+            // 7. 空结果回退（全被剥光返回空标记，上层据此跳过朗读）
             return t;
         }
         function extractReadableText() {
