@@ -143,4 +143,4 @@ python -m http.server 8765
 
 ---
 
-*v3 基于 2026-09-06 实测：TTS 端点 502 持续宕机、Hermes CORS 已放行、模型变 Qwen3.6 推理型。**v4 Phase 0.2 复跑确认（2026-09-07）**：E2E 套件 17 项（T1-T17）真实复跑 **17/17 PASS**；单元测试 U_CLEAN_1-4（22 样本夹具）+ U_POOL_1-4（并发池 + 429 退避）真实复跑 **11/11 PASS**。pLimit `Object.assign`→`Object.defineProperties` getter bug 已修复（U_POOL_3 回归保护）。*
+*v3 基于 2026-09-06 实测：TTS 端点 502 持续宕机、Hermes CORS 已放行、模型变 Qwen3.6 推理型。**v4 Phase 0.2 复跑确认（2026-09-07）**：E2E 套件 17 项（T1-T17）真实复跑 **17/17 PASS**；单元测试 U_CLEAN_1-4（22 样本夹具）+ U_POOL_1-4（并发池 + 429 退避）真实复跑 **11/11 PASS**。pLimit `Object.assign`→`Object.defineProperties` getter bug 已修复（U_POOL_3 回归保护）。**v4.1（2026-09-07）**：新增 P0-3 配置中心（用户自带端点 + UncloseVault API Key + 引擎开关 + 导入导出 schema 校验）+ SW 跨域 CDN 缓存（P1-1，3/3 PASS）+ 全栈迭代路线图。**全量回归 44/44 PASS**（E2E 17 + SW 3 + P0-3 5 + 单元 19）。*

@@ -324,8 +324,25 @@ $ node e2e-test-sw.cjs
 - **GitHub Release**：v4.0.0 — **已创建** https://github.com/lza6/chat-to-speech/releases/tag/v4.0.0（id 383707310，Latest）
 - **发版内容**：E2E 17/17 PASS + 单元 11/11 PASS + pLimit bug 修复 + 全栈迭代路线图重写版
 
-**下一版本（v4.1+）规划**：
-- P0-1 Kokoro WASM 引擎1.5 真机测 → 落地（demo.html:643 插入点已锚定）
-- P0-3 配置中心（用户自带端点 + UncloseVault API Key）
-- P1-2 朗读字级高亮（karaoke）
-- P2-1/P2-2/P2-3 听写/可视化/试听体验增强
+### 8.9 v4.1.0 发版状态（stage-mtpw9j7-2，2026-09-07）
+
+- **新增功能**：P0-3 配置中心（用户自带端点 + UncloseVault API Key + 引擎开关 + 导入导出 schema 校验）
+- **代码改动**（demo.html）：
+  - 新增 P0-3 配置中心纯逻辑：`loadCfg/saveCfg/getTtsEndpoint/getVoicesEndpoint/getTtsModel/getApiKey/setApiKey/exportCfg/importCfg`（:326-398）
+  - `fetchTTSChunk`/`probeTtsEndpoint`/`initVoices` 全部走用户配置端点（优先 UncloseVault 取 API Key）
+  - `synthChain` 新增引擎开关守卫（`cfg.engines_enabled.engine1/2/3`），高级用户可独立关闭某引擎
+  - 新增 `⚙️ 设置` 按钮 + `#cfg-panel` 配置面板（端点/模型/语音端点/API Key/引擎开关/保存/导出/导入/恢复默认）
+  - 绑定：`cfg-btn` toggle / `cfg-save` click / `cfg-export` click / `cfg-import-btn`+file change / `cfg-reset` click
+- **新增测试基础设施**：
+  - `unit-test-cfg.cjs`（U_CFG_1-8，schema 校验/URL 校验/往返一致/损坏 JSON 不崩溃，8/8 PASS）
+  - `e2e-test-cfg.cjs`（T_CFG_1-5，按钮/面板/端点保存探测/导出不含 key/导入 schema/恢复默认，5/5 PASS）
+- **全量回归（真实运行输出）**：
+  - 主 E2E：17/17 PASS（含 T15 历史搜索——修复 cfg-panel 误用 history-panel class 干扰 .history-panel 选择器）
+  - SW E2E：3/3 PASS（T_SW_1/2/3）
+  - P0-3 E2E：5/5 PASS（T_CFG_1-5）
+  - 单元 U_CLEAN：7/7 PASS
+  - 单元 U_POOL：4/4 PASS
+  - 单元 U_CFG：8/8 PASS
+  - **总计 44/44 PASS，零回归**
+- **git commit**：`f681b97` 之后追加（待提交）
+- **下一步**：v4.2 P0-1 Kokoro WASM 引擎1.5 真机测 / P1-2 字级高亮 / P2-* 体验增强

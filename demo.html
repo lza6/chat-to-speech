@@ -270,6 +270,42 @@
             <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false" aria-keyshortcuts="Control+h">📋 历史</button>
             <button class="btn ghost" id="export-history-btn" aria-label="导出历史">📤 导出</button>
             <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
+            <button class="btn ghost" id="cfg-btn" aria-label="高级设置" aria-expanded="false">⚙️ 设置</button>
+        </div>
+        <!-- P0-3 配置面板（v4 新增） -->
+        <div id="cfg-panel" role="region" aria-label="高级设置" style="display:none;">
+            <div style="margin-bottom:12px;">
+                <label for="cfg-tts-endpoint" style="display:block;font-weight:600;margin-bottom:4px;">TTS 合成端点 URL</label>
+                <input type="text" id="cfg-tts-endpoint" placeholder="https://your-tts-endpoint/v1/audio/speech" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
+                <small style="color:var(--muted);">留空用默认 speech.ai.unturf.com。兼容 OpenAI /v1/audio/speech 格式即可。</small>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="cfg-tts-model" style="display:block;font-weight:600;margin-bottom:4px;">TTS 模型名</label>
+                <input type="text" id="cfg-tts-model" placeholder="tts-1-f5" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="cfg-voices-endpoint" style="display:block;font-weight:600;margin-bottom:4px;">语音列表端点 URL</label>
+                <input type="text" id="cfg-voices-endpoint" placeholder="https://your-tts-endpoint/v1/voices" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label for="cfg-api-key" style="display:block;font-weight:600;margin-bottom:4px;">API Key（可选，优先 AES-256 Vault）</label>
+                <input type="password" id="cfg-api-key" placeholder="sk-..." style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
+                <small style="color:var(--muted);">仅本机存储，不入仓库，导出配置不含此项。</small>
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="display:block;font-weight:600;margin-bottom:4px;">启用引擎</label>
+                <label style="margin-right:12px;"><input type="checkbox" id="cfg-eng1" checked> 引擎1 在线</label>
+                <label style="margin-right:12px;"><input type="checkbox" id="cfg-eng2" checked> 引擎2 浏览器</label>
+                <label><input type="checkbox" id="cfg-eng3" checked> 引擎3 文本兜底</label>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                <button class="btn" id="cfg-save">💾 保存配置</button>
+                <button class="btn ghost" id="cfg-export">📤 导出 JSON</button>
+                <button class="btn ghost" id="cfg-import-btn">📥 导入 JSON</button>
+                <input type="file" id="cfg-import-file" accept="application/json" style="display:none;">
+                <button class="btn ghost" id="cfg-reset">↺ 恢复默认</button>
+            </div>
+            <div id="cfg-status" role="status" aria-live="polite" style="color:var(--muted);"></div>
         </div>
         <div class="history-search" id="history-search-wrap" style="display:none;">
             <label class="visually-hidden" for="history-search">搜索历史</label>
@@ -322,6 +358,79 @@
         const exportHistoryBtn = document.getElementById('export-history-btn');
         const historySearchWrap = document.getElementById('history-search-wrap');
         const historySearch = document.getElementById('history-search');
+
+        // P0-3 配置中心：用户自带端点 + 模型 + 语音列表（v4 新增）
+        // key 前缀统一 tts_cfg_*；API Key 走库的 UncloseVault（若可用），不裸 localStorage
+        const CFG_KEY = 'tts_cfg_v1';
+        const CFG_VERSION = 1;
+        const DEFAULT_CFG = {
+            version: CFG_VERSION,
+            tts_endpoint: '',
+            tts_model: '',
+            voices_endpoint: '',
+            voices_custom: [],      // 用户手动添加的语音列表
+            api_key: '',            // 仅当库无 Vault 时退 localStorage（非首选）
+            api_key_in_vault: true,// 优先用 UncloseVault
+            engines_enabled: { engine1: true, engine2: true, engine3: true },
+            clean_custom_prefixes: [] // 用户自定义推理清洗前缀
+        };
+        function loadCfg() {
+            try {
+                const raw = localStorage.getItem(CFG_KEY);
+                if (!raw) return { ...DEFAULT_CFG };
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_CFG };
+                return { ...DEFAULT_CFG, ...parsed, engines_enabled: { ...DEFAULT_CFG.engines_enabled, ...(parsed.engines_enabled || {}) } };
+            } catch (_) { return { ...DEFAULT_CFG }; }
+        }
+        function saveCfg(cfg) {
+            try { localStorage.setItem(CFG_KEY, JSON.stringify({ ...cfg, version: CFG_VERSION })); } catch (_) {}
+        }
+        // 获取端点：用户配置优先于硬编码默认
+        function getTtsEndpoint() { const c = loadCfg(); return c.tts_endpoint || TTS_ENDPOINT; }
+        function getVoicesEndpoint() { const c = loadCfg(); return c.voices_endpoint || VOICES_ENDPOINT; }
+        function getTtsModel() { const c = loadCfg(); return c.tts_model || TTS_MODEL; }
+
+        // API Key 存取：优先 UncloseVault（AES-256），退 localStorage
+        async function getApiKey() {
+            const c = loadCfg();
+            if (c.api_key_in_vault && window.uncloseai && typeof window.uncloseai.UncloseVault !== 'undefined') {
+                try { return await window.uncloseai.UncloseVault.get('tts_api_key') || ''; } catch (_) { /* fallthrough */ }
+            }
+            return c.api_key || '';
+        }
+        async function setApiKey(key) {
+            const c = loadCfg();
+            if (c.api_key_in_vault && window.uncloseai && typeof window.uncloseai.UncloseVault !== 'undefined') {
+                try { await window.uncloseai.UncloseVault.set('tts_api_key', key || ''); return; } catch (_) { /* fallthrough */ }
+            }
+            c.api_key = key || '';
+            saveCfg(c);
+        }
+        // 配置导入导出：导出不含 api_key（安全），导入 schema 校验
+        function exportCfg() {
+            const c = loadCfg();
+            const safe = { ...c, api_key: '', version: CFG_VERSION };
+            return JSON.stringify(safe, null, 2);
+        }
+        function importCfg(jsonStr) {
+            const ALLOWED = Object.keys(DEFAULT_CFG);
+            const cfg = JSON.parse(jsonStr);
+            if (!cfg || typeof cfg !== 'object') throw new Error('配置 JSON 非法：非对象');
+            const cleaned = { ...DEFAULT_CFG };
+            for (const k of Object.keys(cfg)) {
+                if (!ALLOWED.includes(k)) continue; // 拒绝非法字段
+                if (k === 'version') { cleaned.version = CFG_VERSION; continue; }
+                if (k === 'engines_enabled') { cleaned.engines_enabled = { ...DEFAULT_CFG.engines_enabled, ...(cfg.engines_enabled || {}) }; continue; }
+                if (k === 'api_key') continue; // 导入不恢复 api_key，需用户重新填
+                cleaned[k] = cfg[k];
+            }
+            // URL 校验
+            if (cleaned.tts_endpoint && !/^https?:\/\/.+/.test(cleaned.tts_endpoint)) throw new Error('tts_endpoint 非合法 URL');
+            if (cleaned.voices_endpoint && !/^https?:\/\/.+/.test(cleaned.voices_endpoint)) throw new Error('voices_endpoint 非合法 URL');
+            saveCfg(cleaned);
+            return cleaned;
+        }
 
         const TTS_ENDPOINT = 'https://speech.ai.unturf.com/v1/audio/speech';
         const VOICES_ENDPOINT = 'https://speech.ai.unturf.com/v1/voices';
@@ -459,10 +568,14 @@
             // 5 秒内不重复探测
             if (ttsEndpointUp !== null && Date.now() - ttsEndpointCheckedAt < 5000) return ttsEndpointUp;
             ttsEndpointCheckedAt = Date.now();
+            // P0-3: 用户配置了端点则探测用户的；否则默认
             try {
                 const ctrl = new AbortController();
                 const t = setTimeout(() => ctrl.abort(), 4000);
-                const res = await fetch(VOICES_ENDPOINT, { signal: ctrl.signal });
+                const headers = {};
+                const apiKey = await getApiKey();
+                if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+                const res = await fetch(getVoicesEndpoint(), { signal: ctrl.signal, headers });
                 clearTimeout(t);
                 ttsEndpointUp = res.ok;
             } catch (e) {
@@ -581,70 +694,74 @@
         }
 
         // 调度器：依次尝试引擎1→2→3，状态栏透明告知
+        // P0-3: 各引擎启用状态由配置中心控制（高级用户可关掉浏览器机械音等）
         async function synthChain(text, voice, speed, myId) {
             currentEngine = 0;
             const chunks = splitIntoChunks(text);
+            const cfg = loadCfg();
             // 引擎1：在线 F5-TTS
-            const up = await probeTtsEndpoint();
-            if (up) {
-                try {
-                    currentEngine = 1;
-                    progressEl.style.display = 'block';
-                    progressEl.max = chunks.length;
-                    progressEl.value = 0;
-                    audioBlobs = [];
-                    // P1-3 并发合成池（v4 升级）：限制并发 3（与官方限流 3 req/s 对齐），
-                    // 收到 429 立即降 max=2 + 指数退避重试（fetchTTSChunk 已具备退避基座）。
-                    // 按序播放不变：播放循环 await prefetchPromises[i]（幂等，resolved promise 再 await 立即返回）。
-                    const blobCache = new Array(chunks.length).fill(null);
-                    const prefetchPromises = new Array(chunks.length).fill(null);
-                    const ttsLimiter = pLimit(3);
-                    const prefetch = (i) => {
-                        if (i < 0 || i >= chunks.length || prefetchPromises[i] || myId !== speakRequestId) return prefetchPromises[i] || Promise.resolve();
-                        prefetchPromises[i] = ttsLimiter(() => fetchTTSChunk(chunks[i], voice, speed).then(
-                            (b) => { blobCache[i] = b; },
-                            (e) => {
-                                // 429 退避：降并发到 2，让正在排队的任务慢下来
-                                if (e && /429|rate.?limit/i.test(e.message || String(e))) {
-                                    ttsLimiter.lowerMax(2);
-                                    setStatus('⚠️ 端点限流，已自动降并发并重试…');
+            if (cfg.engines_enabled.engine1 !== false) {
+                const up = await probeTtsEndpoint();
+                if (up) {
+                    try {
+                        currentEngine = 1;
+                        progressEl.style.display = 'block';
+                        progressEl.max = chunks.length;
+                        progressEl.value = 0;
+                        audioBlobs = [];
+                        // P1-3 并发合成池（v4 升级）：限制并发 3（与官方限流 3 req/s 对齐），
+                        // 收到 429 立即降 max=2 + 指数退避重试（fetchTTSChunk 已具备退避基座）。
+                        // 按序播放不变：播放循环 await prefetchPromises[i]（幂等，resolved promise 再 await 立即返回）。
+                        const blobCache = new Array(chunks.length).fill(null);
+                        const prefetchPromises = new Array(chunks.length).fill(null);
+                        const ttsLimiter = pLimit(3);
+                        const prefetch = (i) => {
+                            if (i < 0 || i >= chunks.length || prefetchPromises[i] || myId !== speakRequestId) return prefetchPromises[i] || Promise.resolve();
+                            prefetchPromises[i] = ttsLimiter(() => fetchTTSChunk(chunks[i], voice, speed).then(
+                                (b) => { blobCache[i] = b; },
+                                (e) => {
+                                    // 429 退避：降并发到 2，让正在排队的任务慢下来
+                                    if (e && /429|rate.?limit/i.test(e.message || String(e))) {
+                                        ttsLimiter.lowerMax(2);
+                                        setStatus('⚠️ 端点限流，已自动降并发并重试…');
+                                    }
+                                    blobCache[i] = e;
                                 }
-                                blobCache[i] = e;
-                            }
-                        ));
-                        return prefetchPromises[i];
-                    };
-                    // 预取前 3 块（并发启动，不 await，与播放重叠）
-                    for (let i = 0; i < Math.min(3, chunks.length); i++) prefetch(i);
-                    for (let i = 0; i < chunks.length; i++) {
-                        if (isStopped || myId !== speakRequestId) break;
-                        // 等第 i 块就绪（幂等 await：resolved promise 立即返回）
-                        await prefetchPromises[i];
-                        if (isStopped || myId !== speakRequestId) break;
-                        if (blobCache[i] instanceof Error) throw blobCache[i];
-                        if (!blobCache[i]) break;
-                        // 维持 3 在途：播放第 i 块时预取第 i+3 块
-                        if (i + 3 < chunks.length) prefetch(i + 3);
-                        isSynthesizing = false;
-                        setStatus(`🎤 在线合成播放中…（第 ${i + 1}/${chunks.length} 段）`);
-                        progressEl.value = i;
-                        const r = await playBlob(blobCache[i]);
-                        if (r === 'stopped') break;
-                        if (r !== 'blocked') audioBlobs.push(blobCache[i]);
-                        if (r === 'blocked') break;
+                            ));
+                            return prefetchPromises[i];
+                        };
+                        // 预取前 3 块（并发启动，不 await，与播放重叠）
+                        for (let i = 0; i < Math.min(3, chunks.length); i++) prefetch(i);
+                        for (let i = 0; i < chunks.length; i++) {
+                            if (isStopped || myId !== speakRequestId) break;
+                            // 等第 i 块就绪（幂等 await：resolved promise 立即返回）
+                            await prefetchPromises[i];
+                            if (isStopped || myId !== speakRequestId) break;
+                            if (blobCache[i] instanceof Error) throw blobCache[i];
+                            if (!blobCache[i]) break;
+                            // 维持 3 在途：播放第 i 块时预取第 i+3 块
+                            if (i + 3 < chunks.length) prefetch(i + 3);
+                            isSynthesizing = false;
+                            setStatus(`🎤 在线合成播放中…（第 ${i + 1}/${chunks.length} 段）`);
+                            progressEl.value = i;
+                            const r = await playBlob(blobCache[i]);
+                            if (r === 'stopped') break;
+                            if (r !== 'blocked') audioBlobs.push(blobCache[i]);
+                            if (r === 'blocked') break;
+                        }
+                        if (!isStopped && myId === speakRequestId) return 'ok';
+                        return 'stopped';
+                    } catch (e) {
+                        // 引擎1 失败，降级
+                        logError(e.message, 'synthChain-engine1');
+                        ttsEndpointUp = false; // 标记宕机，避免短期重试
+                        ttsEndpointCheckedAt = Date.now();
                     }
-                    if (!isStopped && myId === speakRequestId) return 'ok';
-                    return 'stopped';
-                } catch (e) {
-                    // 引擎1 失败，降级
-                    logError(e.message, 'synthChain-engine1');
-                    ttsEndpointUp = false; // 标记宕机，避免短期重试
-                    ttsEndpointCheckedAt = Date.now();
                 }
             }
             // 引擎2：浏览器内置
             if (isStopped || myId !== speakRequestId) return 'stopped';
-            if ('speechSynthesis' in window) {
+            if (cfg.engines_enabled.engine2 !== false && 'speechSynthesis' in window) {
                 currentEngine = 2;
                 progressEl.style.display = 'block';
                 progressEl.max = chunks.length;
@@ -658,8 +775,13 @@
             }
             // 引擎3：文本兜底
             if (isStopped || myId !== speakRequestId) return 'stopped';
-            currentEngine = 3;
-            await synthFallbackText(text);
+            if (cfg.engines_enabled.engine3 !== false) {
+                currentEngine = 3;
+                await synthFallbackText(text);
+                return 'fallback';
+            }
+            // 全部引擎被禁用
+            setStatus('⚠️ 所有引擎已被禁用，请在设置中启用至少一个引擎。');
             return 'fallback';
         }
 
@@ -667,11 +789,14 @@
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 60000);
             try {
-                const res = await fetchWithRetry(TTS_ENDPOINT, {
+                const headers = { 'Content-Type': 'application/json' };
+                const apiKey = await getApiKey();
+                if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+                const res = await fetchWithRetry(getTtsEndpoint(), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({
-                        model: TTS_MODEL, voice, input: text,
+                        model: getTtsModel(), voice, input: text,
                         response_format: 'mp3',
                         speed: speed != null ? speed : 1
                     }),
@@ -994,11 +1119,14 @@
             } catch (e) {}
             if (cachedList) fillVoiceSelect(cachedList);
 
-            // 2. 后台静默 refresh
+            // 2. 后台静默 refresh（P0-3: 走用户配置端点或默认）
             try {
                 const ctrl = new AbortController();
                 const t = setTimeout(() => ctrl.abort(), 5000);
-                const res = await fetch(VOICES_ENDPOINT, { signal: ctrl.signal });
+                const headers = {};
+                const apiKey = await getApiKey();
+                if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+                const res = await fetch(getVoicesEndpoint(), { signal: ctrl.signal, headers });
                 clearTimeout(t);
                 if (!res.ok) { updateEndpointBadge(false); return; }
                 const data = await res.json();
@@ -1191,6 +1319,95 @@
                 updateCharCount();
                 ttsInput.focus();
             });
+        });
+
+        // ============ P0-3 配置面板绑定（v4 新增） ============
+        const cfgBtn = document.getElementById('cfg-btn');
+        const cfgPanel = document.getElementById('cfg-panel');
+        const cfgTtsEndpoint = document.getElementById('cfg-tts-endpoint');
+        const cfgTtsModel = document.getElementById('cfg-tts-model');
+        const cfgVoicesEndpoint = document.getElementById('cfg-voices-endpoint');
+        const cfgApiKey = document.getElementById('cfg-api-key');
+        const cfgEng1 = document.getElementById('cfg-eng1');
+        const cfgEng2 = document.getElementById('cfg-eng2');
+        const cfgEng3 = document.getElementById('cfg-eng3');
+        const cfgSave = document.getElementById('cfg-save');
+        const cfgExport = document.getElementById('cfg-export');
+        const cfgImportBtn = document.getElementById('cfg-import-btn');
+        const cfgImportFile = document.getElementById('cfg-import-file');
+        const cfgReset = document.getElementById('cfg-reset');
+        const cfgStatus = document.getElementById('cfg-status');
+
+        function fillCfgForm() {
+            const c = loadCfg();
+            cfgTtsEndpoint.value = c.tts_endpoint || '';
+            cfgTtsModel.value = c.tts_model || '';
+            cfgVoicesEndpoint.value = c.voices_endpoint || '';
+            cfgApiKey.value = ''; // 不回显，安全
+            cfgEng1.checked = c.engines_enabled.engine1 !== false;
+            cfgEng2.checked = c.engines_enabled.engine2 !== false;
+            cfgEng3.checked = c.engines_enabled.engine3 !== false;
+        }
+        cfgBtn.addEventListener('click', async () => {
+            const open = cfgPanel.style.display === 'none';
+            cfgPanel.style.display = open ? 'block' : 'none';
+            cfgBtn.setAttribute('aria-expanded', String(open));
+            if (open) { fillCfgForm(); cfgStatus.textContent = ''; }
+        });
+        cfgSave.addEventListener('click', async () => {
+            try {
+                const c = loadCfg();
+                c.tts_endpoint = cfgTtsEndpoint.value.trim();
+                c.tts_model = cfgTtsModel.value.trim();
+                c.voices_endpoint = cfgVoicesEndpoint.value.trim();
+                c.engines_enabled = { engine1: cfgEng1.checked, engine2: cfgEng2.checked, engine3: cfgEng3.checked };
+                saveCfg(c);
+                await setApiKey(cfgApiKey.value);
+                cfgStatus.textContent = '✅ 已保存。端点切换将生效。';
+                // 端点变更后强制重探测
+                ttsEndpointUp = null;
+                probeTtsEndpoint().then(up => updateEndpointBadge(up));
+                initVoices();
+            } catch (e) {
+                cfgStatus.textContent = '❌ 保存失败：' + e.message;
+            }
+        });
+        cfgExport.addEventListener('click', () => {
+            const json = exportCfg();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'chat-tts-config.json';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            cfgStatus.textContent = '✅ 已导出配置（不含 API Key）。';
+        });
+        cfgImportBtn.addEventListener('click', () => cfgImportFile.click());
+        cfgImportFile.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const cleaned = importCfg(text);
+                // 导入后回填表单
+                fillCfgForm();
+                cfgStatus.textContent = '✅ 已导入配置（API Key 需重新填写）。';
+                ttsEndpointUp = null;
+                probeTtsEndpoint().then(up => updateEndpointBadge(up));
+                initVoices();
+            } catch (e2) {
+                cfgStatus.textContent = '❌ 导入失败：' + e2.message;
+            }
+            cfgImportFile.value = '';
+        });
+        cfgReset.addEventListener('click', () => {
+            saveCfg({ ...DEFAULT_CFG });
+            fillCfgForm();
+            cfgStatus.textContent = '✅ 已恢复默认配置。';
+            ttsEndpointUp = null;
+            probeTtsEndpoint().then(up => updateEndpointBadge(up));
+            initVoices();
         });
 
         // 键盘快捷键（E4）：Ctrl+Enter 朗读 / Esc 停止 / 空格 暂停-恢复
