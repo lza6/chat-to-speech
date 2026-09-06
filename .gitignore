@@ -7,3 +7,5 @@ server.cjs
 test-cases/*.tmp
 # 临时验证脚本（静态语法/夹具核验用，不入库）
 verify-*.cjs
+# 临时真机测验证页（不入库）
+verify-kokoro.html
