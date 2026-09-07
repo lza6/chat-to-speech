@@ -15,7 +15,7 @@ function main() {
   let e2eTotal = 0;
   const e2eByFile = {};
   for (const f of E2E_FILES) {
-    if (!fs.existsSync(f)) { console.error(`[missing] ${f}`); continue; }
+    if (!fs.existsSync(f)) { console.error(`[missing] E2E 文件 ${f} 不存在 → 门禁 FAIL`); process.exit(1); }
     const n = countPattern(fs.readFileSync(f, 'utf8'), /await test\(/g);
     e2eByFile[f] = n; e2eTotal += n;
   }
