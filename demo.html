@@ -173,6 +173,25 @@
         }
         .history-item:hover { color: var(--accent); }
         .history-item .hist-text { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* A1：透明操作时间线样式 */
+        .timeline-panel {
+            margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;
+        }
+        .timeline-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .timeline-item {
+            font-size: .78rem; color: var(--ink); padding: 5px 8px; border-radius: 6px;
+            background: color-mix(in srgb, var(--ink) 6%, transparent);
+            display: flex; gap: 8px; align-items: baseline;
+        }
+        .timeline-item .tl-ts { color: var(--muted); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+        .timeline-item .tl-kind {
+            flex: 0 0 auto; font-weight: 700; font-size: .7rem; padding: 1px 6px; border-radius: 999px;
+            background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent);
+        }
+        .timeline-item.tl-err .tl-kind { background: rgba(220,53,69,.15); color: #dc3545; }
+        .timeline-item .tl-msg { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .timeline-item .tl-dur { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
         .history-item small { color: var(--muted); margin-left: 6px; white-space: nowrap; }
         .history-item .chip-btn { flex: 0 0 auto; padding: 2px 8px; font-size: .75rem; }
         .history-empty { padding: 12px 4px; color: var(--muted); font-size: .85rem; }
@@ -270,6 +289,7 @@
             <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false" aria-keyshortcuts="Control+h">📋 历史</button>
             <button class="btn ghost" id="export-history-btn" aria-label="导出历史">📤 导出</button>
             <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
+            <button class="btn ghost" id="timeline-btn" aria-label="透明操作时间线" aria-expanded="false">🧾 透明时间线</button>
             <button class="btn ghost" id="cfg-btn" aria-label="高级设置" aria-expanded="false">⚙️ 设置</button>
         </div>
         <!-- P0-3 配置面板（v4 新增） -->
@@ -319,6 +339,15 @@
             <input type="search" id="history-search" placeholder="搜索历史文本或语音…" aria-label="搜索历史">
         </div>
         <div class="history-panel" id="history-panel" role="region" aria-label="朗读历史"></div>
+        <!-- A1：透明操作时间线（黑匣子日志全开）——事件信封 + 追加式 store + 投影时间线 -->
+        <div class="timeline-panel" id="timeline-panel" role="region" aria-label="透明操作时间线" style="display:none;">
+            <div id="timeline-list" class="timeline-list" aria-live="polite"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn ghost" id="timeline-export">📤 导出日志 JSON</button>
+                <button class="btn ghost" id="timeline-clear">🗑️ 清空日志</button>
+            </div>
+            <div id="timeline-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
+        </div>
         <div class="status" id="tts-status" role="status" aria-live="polite"></div>
         <div class="notice" id="tts-notice" role="alert"></div>
     </section>
@@ -458,6 +487,74 @@
         function clearNotice()  { noticeEl.classList.remove('show'); noticeEl.textContent = ''; }
 
         // ============ 工具：错误日志（localStorage 环形缓冲，可导出） ============
+        // ============ A1：透明操作时间线（黑匣子日志全开） ============
+        // 事件信封（参考 pentestkit AuditEntry：ts/kind/msg/ok/ctx，被拦与失败照样入库）
+        // 追加式 store（localStorage 环形 200 条）+ 投影渲染；写盘前脱敏（不存 api_key / 长正文）。
+        const TIMELINE_KEY = 'tts_timeline_v1';
+        const TIMELINE_CAP = 200;
+        let timelineId = 0;
+        function pushTimeline(kind, msg, ok = true, ctx = '') {
+            try {
+                const arr = JSON.parse(localStorage.getItem(TIMELINE_KEY) || '[]');
+                const safeMsg = String(msg || '').slice(0, 200);
+                arr.push({ id: ++timelineId, ts: Date.now(), kind: String(kind).slice(0, 24), msg: safeMsg, ok: !!ok, ctx: String(ctx || '').slice(0, 60) });
+                localStorage.setItem(TIMELINE_KEY, JSON.stringify(arr.slice(-TIMELINE_CAP)));
+            } catch (_) {}
+            // 面板已展开时实时追加（黑匣子日志全开：无需重开即可看到每一步）
+            const panel = document.getElementById('timeline-panel');
+            if (panel && panel.style.display === 'block') renderTimeline();
+        }
+        function loadTimeline() {
+            try { return JSON.parse(localStorage.getItem(TIMELINE_KEY) || '[]'); } catch (_) { return []; }
+        }
+        function clearTimeline() { try { localStorage.removeItem(TIMELINE_KEY); } catch (_) {} }
+        function exportTimeline() {
+            const arr = loadTimeline();
+            const blob = new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'chat-tts-timeline.json';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            return arr.length;
+        }
+        function renderTimeline() {
+            const list = document.getElementById('timeline-list');
+            if (!list) return;
+            const arr = loadTimeline();
+            list.innerHTML = '';
+            if (!arr.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.8rem;">暂无操作记录。点一次「朗读」或「整页朗读」后这里会出现每一步发生了什么、用了哪个引擎、耗时多少。</div>'; return; }
+            const fmt = (ts) => new Date(ts).toTimeString().slice(0, 8) + '.' + String(new Date(ts).getMilliseconds()).padStart(3, '0');
+            for (const e of arr.slice(-50).reverse()) {
+                const div = document.createElement('div');
+                div.className = 'timeline-item' + (e.ok ? '' : ' tl-err');
+                const ts = document.createElement('span'); ts.className = 'tl-ts'; ts.textContent = fmt(e.ts);
+                const kind = document.createElement('span'); kind.className = 'tl-kind'; kind.textContent = e.kind || '?';
+                const msg = document.createElement('span'); msg.className = 'tl-msg'; msg.textContent = e.msg || '';
+                div.appendChild(ts); div.appendChild(kind); div.appendChild(msg);
+                if (e.ctx) { const c = document.createElement('span'); c.className = 'tl-dur'; c.textContent = e.ctx; div.appendChild(c); }
+                list.appendChild(div);
+            }
+        }
+        function wireTimelineUI() {
+            const btn = document.getElementById('timeline-btn');
+            const panel = document.getElementById('timeline-panel');
+            if (!btn || !panel) return;
+            btn.addEventListener('click', () => {
+                const open = panel.style.display === 'none';
+                panel.style.display = open ? 'block' : 'none';
+                btn.setAttribute('aria-expanded', String(open));
+                if (open) renderTimeline();
+            });
+            const ex = document.getElementById('timeline-export');
+            if (ex) ex.addEventListener('click', () => {
+                const st = document.getElementById('timeline-status');
+                if (st) st.textContent = exportTimeline() ? '已导出操作日志（不含敏感信息）。' : '暂无日志可导出。';
+            });
+            const cl = document.getElementById('timeline-clear');
+            if (cl) cl.addEventListener('click', () => { clearTimeline(); renderTimeline(); const st = document.getElementById('timeline-status'); if (st) st.textContent = '已清空日志。'; });
+        }
+
         const ERR_KEY = 'tts_err_log_v2';
         function logError(msg, ctx) {            try {
                 const log = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
@@ -973,6 +1070,7 @@
             if (cfg.engines_enabled.engine1 !== false) {
                 const up = await probeTtsEndpoint();
                 if (up || up === null) { // A2：全部 unknown（从未探测）也放行，交给 fetchTTSChunk 内路由立刻判别
+                    pushTimeline('engine1', '尝试在线 F5-TTS 合成…', true, 'engine1');
                     try {
                         currentEngine = 1;
                         progressEl.style.display = 'block';
@@ -1024,6 +1122,7 @@
                     } catch (e) {
                         // 引擎1 失败，降级
                         logError(e.message, 'synthChain-engine1');
+                        pushTimeline('engine1', '在线端点失败：' + (e.message || e), false, '已降级');
                         ttsEndpointUp = false; // 标记宕机，避免短期重试
                         ttsEndpointCheckedAt = Date.now();
                     }
@@ -1033,6 +1132,7 @@
             // C2 修复：触发判定改为「含 CJK 统一表意文字」，避免前导空格/全角/emoji 误触发
             if (isStopped || myId !== speakRequestId) return 'stopped';
             if (cfg.engines_enabled.engine15 !== false && typeof WebAssembly !== 'undefined' && /\p{Script=Han}/u.test(text)) {
+                pushTimeline('engine15', '尝试本地 WASM 中文引擎…', true, 'engine15');
                 try {
                     currentEngine = 15;
                     progressEl.style.display = 'block';
@@ -1046,6 +1146,7 @@
                     // r === 'error' 继续降级（模型下载失败/依赖不可用等，原因已透出在 synthWithZhWasm 状态栏）
                 } catch (e) {
                     logError(e.message, 'synthChain-engine15');
+                    pushTimeline('engine15', '本地中文引擎失败：' + (e.message || e), false, '已降级');
                     // 引擎2 分支会覆盖此文案；若 engine2 也失败到引擎3，最终文案由引擎3 兜底
                     setStatus('🀄 本地中文引擎异常：' + (e.message || e) + '，已切换其他引擎。');
                 }
@@ -1054,6 +1155,7 @@
             if (isStopped || myId !== speakRequestId) return 'stopped';
             if (cfg.engines_enabled.engine2 !== false && 'speechSynthesis' in window) {
                 currentEngine = 2;
+                pushTimeline('engine2', '切换到浏览器内置语音（离线）…', true, 'engine2');
                 progressEl.style.display = 'block';
                 progressEl.max = chunks.length;
                 progressEl.value = 0;
@@ -1073,6 +1175,7 @@
             if (isStopped || myId !== speakRequestId) return 'stopped';
             if (cfg.engines_enabled.engine3 !== false) {
                 currentEngine = 3;
+                pushTimeline('engine3', '所有语音引擎不可用，走文本兜底（复制到剪贴板）。', true, 'engine3');
                 await synthFallbackText(text);
                 return 'fallback';
             }
@@ -1762,6 +1865,8 @@
             }
         });
 
+        // A1：透明操作时间线（黑匣子日志全开）UI 绑定
+        wireTimelineUI();
         // 初始化
         updateCharCount();
         try {
@@ -1771,8 +1876,9 @@
         } catch(_){}
         // P0-1: 预加载浏览器语音列表（异步，voiceschanged 后填充）
         loadSynthVoices();
+        pushTimeline('system', '页面加载完成，初始化开始。');
         // P0-2: 预探测端点健康（不阻塞，synthChain 内会再 probe）
-        probeTtsEndpoint().then(up => updateEndpointBadge(up));
+        probeTtsEndpoint().then(up => { updateEndpointBadge(up); pushTimeline('probe', up ? '在线端点健康，可用。' : '在线端点不可达，将走本地/离线引擎。', up); });
         // P3-1: 注册 Service Worker 实现离线缓存（网络优先回退缓存）
         // 断网后刷新页面不白屏，闭环②仍可走浏览器内置引擎出声
         if ('serviceWorker' in navigator) {
