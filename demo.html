@@ -290,6 +290,7 @@
             <button class="btn ghost" id="export-history-btn" aria-label="导出历史">📤 导出</button>
             <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
             <button class="btn ghost" id="timeline-btn" aria-label="透明操作时间线" aria-expanded="false">🧾 透明时间线</button>
+            <button class="btn ghost" id="memory-btn" aria-label="本地记忆与画像" aria-expanded="false">🧠 记忆</button>
             <button class="btn ghost" id="cfg-btn" aria-label="高级设置" aria-expanded="false">⚙️ 设置</button>
         </div>
         <!-- P0-3 配置面板（v4 新增） -->
@@ -349,6 +350,20 @@
             <div id="timeline-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
         </div>
         <div class="status" id="tts-status" role="status" aria-live="polite"></div>
+        <!-- B1：本地记忆与画像（三层：conversations/records/persona；画像克制更新） -->
+        <div class="memory-panel" id="memory-panel" role="region" aria-label="本地记忆与画像" style="display:none;">
+            <div class="memory-tabs" style="display:flex;gap:8px;margin-bottom:8px;">
+                <button class="btn ghost memory-tab" data-tab="persona">👤 画像</button>
+                <button class="btn ghost memory-tab" data-tab="records">🗂️ 记忆</button>
+                <button class="btn ghost memory-tab" data-tab="skills">✨ 结晶技能</button>
+            </div>
+            <div id="memory-body" aria-live="polite"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn ghost" id="memory-export">📤 导出记忆 JSON</button>
+                <button class="btn ghost" id="memory-clear">🗑️ 清空记忆</button>
+            </div>
+            <div id="memory-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
+        </div>
         <div class="notice" id="tts-notice" role="alert"></div>
     </section>
 
@@ -1335,6 +1350,7 @@
                     // 引擎2 完成时 synthChain 已把状态置为「🔊 离线朗读完毕」；此处仅引擎1 在线走「播放完毕」
                     if (!/离线朗读完毕/.test(ttsStatus ? ttsStatus.textContent : '')) setStatus(currentEngine === 1 ? '播放完毕。' : '🔊 离线朗读完毕。');
                     saveHistory(text, voice);
+                    memoryRecord('朗读', '朗读完成（引擎' + currentEngine + '），文本前 40 字：' + String(text).slice(0, 40));
                     const finishId = myId;
                     setTimeout(() => {
                         if (!isSynthesizing && speakRequestId === finishId) progressEl.style.display = 'none';
@@ -1894,6 +1910,124 @@
 
         // A1：透明操作时间线（黑匣子日志全开）UI 绑定
         wireTimelineUI();
+        // B1：本地记忆与画像 UI 绑定（与 unit-test-memory.cjs 双实现同步）
+        wireMemoryUI();
+        // B1：本地记忆与画像（三层 + 画像克制 + 结晶门控）——与 unit-test-memory.cjs 双实现同步
+        const MEMORY_KEY = 'tts_memory_v1';
+        const MEMORY_TYPES = ['semantic', 'episodic', 'procedural', 'preference', 'skill'];
+        function memoryLoad() {
+            try { return JSON.parse(localStorage.getItem(MEMORY_KEY) || '{"persona":null,"records":[],"skills":[]}'); } catch (_) { return { persona: null, records: [], skills: [] }; }
+        }
+        function memorySave(m) { try { localStorage.setItem(MEMORY_KEY, JSON.stringify(m)); } catch (_) {} }
+        function memoryTokenize(text) {
+            const norm = String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
+            return [...new Set(norm.split(/\s+/).filter(Boolean))];
+        }
+        function memoryValidate(rec) {
+            if (!rec || typeof rec !== 'object') return { ok: false, err: '非对象' };
+            if (!rec.id || typeof rec.id !== 'string') return { ok: false, err: '缺 id' };
+            if (!MEMORY_TYPES.includes(rec.type)) return { ok: false, err: '非法 type' };
+            if (typeof rec.content !== 'string' || !rec.content.length) return { ok: false, err: 'content 必填' };
+            if (rec.priority != null && (typeof rec.priority !== 'number' || rec.priority < -1 || rec.priority > 100)) return { ok: false, err: 'priority 范围' };
+            return { ok: true };
+        }
+        function memoryMergePersona(persona, fact) {
+            if (!persona) persona = { id: 'persona', content: '', updated_at: 0, version: 0, reinforced: 0 };
+            const cur = persona.content || '';
+            const a = cur, b = String(fact.content || '');
+            let common = 0; const max = Math.min(a.length, b.length, 12);
+            while (common < max && a[common] === b[common]) common++;
+            if (common >= 8) return { ...persona, reinforced: (persona.reinforced || 0) + 1, updated_at: Date.now(), version: (persona.version || 0) + 1 };
+            const next = cur ? cur + '\n' + b : b;
+            if (next.length > 2000) return { ...persona, rejected: 'over-limit' };
+            return { ...persona, content: next, updated_at: Date.now(), version: (persona.version || 0) + 1 };
+        }
+        function memoryCrystalEligible(stats) {
+            if (!stats) return false;
+            const { executions = 0, success_rate = 0, distinct_queries = 0, days_since_last = 999 } = stats;
+            return executions >= 5 && success_rate >= 0.8 && distinct_queries >= 2 && days_since_last <= 30;
+        }
+        function memoryRecord(kind, detail) {
+            // 每次朗读/聊天记录一条 episodic 记忆（来源；供日后结晶/检索）
+            const m = memoryLoad();
+            const rec = { id: 'r' + Date.now() + Math.random().toString(36).slice(2, 6), type: 'episodic', content: detail || kind, priority: 50, topics: [kind], source: 'app', session_id: 's1', created_at: Date.now(), version: 1 };
+            if (!memoryValidate(rec).ok) return;
+            m.records.unshift(rec);
+            m.records = m.records.slice(0, 50);
+            memorySave(m);
+        }
+        function memoryRender(tab) {
+            const body = document.getElementById('memory-body');
+            if (!body) return;
+            const m = memoryLoad();
+            body.innerHTML = '';
+            if (tab === 'persona') {
+                if (!m.persona || !m.persona.content) { body.innerHTML = '<div style="color:var(--muted);font-size:.85rem;">画像尚未建立。使用几次朗读/聊天后，这里会出现你的偏好画像（克制更新，不超过 2000 字）。</div>'; return; }
+                const p = document.createElement('div');
+                p.className = 'memory-card';
+                p.style.cssText = 'padding:10px;border-radius:8px;background:color-mix(in srgb,var(--ink) 6%,transparent);font-size:.85rem;line-height:1.6;';
+                p.textContent = m.persona.content;
+                body.appendChild(p);
+                const meta = document.createElement('div');
+                meta.style.cssText = 'color:var(--muted);font-size:.75rem;margin-top:6px;';
+                meta.textContent = '版本 v' + (m.persona.version || 0) + ' · 强化 ' + (m.persona.reinforced || 0) + ' 次';
+                body.appendChild(meta);
+            } else if (tab === 'records') {
+                if (!m.records.length) { body.innerHTML = '<div style="color:var(--muted);font-size:.85rem;">暂无记忆记录。使用朗读/聊天后这里会记录你最近的操作片段。</div>'; return; }
+                const list = document.createElement('div');
+                list.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+                for (const r of m.records.slice(0, 20)) {
+                    const d = document.createElement('div');
+                    d.style.cssText = 'font-size:.8rem;padding:5px 8px;border-radius:6px;background:color-mix(in srgb,var(--ink) 6%,transparent);';
+                    d.textContent = '[' + r.type + '] ' + String(r.content).slice(0, 80);
+                    list.appendChild(d);
+                }
+                body.appendChild(list);
+            } else if (tab === 'skills') {
+                if (!m.skills.length) { body.innerHTML = '<div style="color:var(--muted);font-size:.85rem;">尚无结晶技能。重复 5 次以上相同操作、成功率 ≥80%、多种问法后，这里会出现「建议结晶」。</div>'; return; }
+                const list = document.createElement('div');
+                list.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+                for (const s of m.skills) {
+                    const d = document.createElement('div');
+                    d.style.cssText = 'font-size:.8rem;padding:5px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 12%,transparent);';
+                    d.textContent = '✨ ' + s.name + ' — ' + String(s.description || '').slice(0, 60);
+                    list.appendChild(d);
+                }
+                body.appendChild(list);
+            }
+        }
+        function wireMemoryUI() {
+            const btn = document.getElementById('memory-btn');
+            const panel = document.getElementById('memory-panel');
+            if (!btn || !panel) return;
+            btn.addEventListener('click', () => {
+                const open = panel.style.display === 'none';
+                panel.style.display = open ? 'block' : 'none';
+                btn.setAttribute('aria-expanded', String(open));
+                if (open) memoryRender('persona');
+            });
+            panel.querySelectorAll('.memory-tab').forEach(t => {
+                t.addEventListener('click', () => memoryRender(t.getAttribute('data-tab')));
+            });
+            const ex = document.getElementById('memory-export');
+            if (ex) ex.addEventListener('click', () => {
+                const blob = new Blob([JSON.stringify(memoryLoad(), null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'chat-tts-memory.json';
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                const st = document.getElementById('memory-status');
+                if (st) st.textContent = '已导出记忆（本地数据，不含密钥）。';
+            });
+            const cl = document.getElementById('memory-clear');
+            if (cl) cl.addEventListener('click', () => {
+                try { localStorage.removeItem(MEMORY_KEY); } catch (_) {}
+                memoryRender('persona');
+                const st = document.getElementById('memory-status');
+                if (st) st.textContent = '已清空记忆。';
+            });
+        }
         // 初始化
         updateCharCount();
         try {
