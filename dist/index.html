@@ -496,8 +496,12 @@
         function pushTimeline(kind, msg, ok = true, ctx = '') {
             try {
                 const arr = JSON.parse(localStorage.getItem(TIMELINE_KEY) || '[]');
-                const safeMsg = String(msg || '').slice(0, 200);
-                arr.push({ id: ++timelineId, ts: Date.now(), kind: String(kind).slice(0, 24), msg: safeMsg, ok: !!ok, ctx: String(ctx || '').slice(0, 60) });
+                // 脱敏：除长度截断外，追加密钥模式清洗（Critic MAJOR：错误消息可能含 sk-xxx）
+                let safeMsg = String(msg || '').slice(0, 200)
+                    .replace(/(sk-[A-Za-z0-9_-]{6,})/g, 'sk-***')
+                    .replace(/(Bearer\s+[A-Za-z0-9._-]{6,})/gi, 'Bearer ***');
+                const safeCtx = String(ctx || '').slice(0, 60);
+                arr.push({ id: ++timelineId, ts: Date.now(), kind: String(kind).slice(0, 24), msg: safeMsg, ok: !!ok, ctx: safeCtx });
                 localStorage.setItem(TIMELINE_KEY, JSON.stringify(arr.slice(-TIMELINE_CAP)));
             } catch (_) {}
             // 面板已展开时实时追加（黑匣子日志全开：无需重开即可看到每一步）
@@ -556,7 +560,8 @@
         }
 
         const ERR_KEY = 'tts_err_log_v2';
-        function logError(msg, ctx) {            try {
+        function logError(msg, ctx) {
+            try {
                 const log = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
                 log.push({ msg: String(msg).slice(0,300), ctx: ctx||'', ts: Date.now() });
                 localStorage.setItem(ERR_KEY, JSON.stringify(log.slice(-50)));
@@ -676,7 +681,6 @@
         // A2：多端点健康自愈池（引用单元测试 unit-test-health.cjs 同一算法，改一处必须同步）
         const HEALTH_POOL_KEY = 'tts_health_pool_v1';
         let ttsHealthPool = null;              // 端点健康池实例（懒初始化）
-        let ttsEndpoints = [];                 // 当前生效端点列表（优先用户配置，回退默认）
         function healthPoolInit() {
             if (ttsHealthPool) return ttsHealthPool;
             const map = new Map();
@@ -687,7 +691,6 @@
                     else if (typeof priority === 'number') e.priority = priority;
                     return e;
                 },
-                now: () => Date.now(),
                 reportOk(url) { const e = this.get(url); e.status = 'healthy'; e.fails = 0; e.cooldownUntil = 0; e.reason = ''; e.okTotal = (e.okTotal || 0) + 1; this.persist(); },
                 reportFail(url, status, reason = '') {
                     const e = this.get(url);
@@ -713,8 +716,10 @@
                     if (alive.length) return alive[0];
                     const pending = arr.filter(e => e.status === 'unknown');
                     if (pending.length) return pending[0];
+                    // 全冷：优先选"冷却最早到期"的端点（其余端在冷却期，选最短恢复可减少首包等待）
+                    const soonest = arr.slice().sort((a, b) => a.cooldownUntil - b.cooldownUntil)[0];
                     const minT = Math.min(...arr.map(e => Math.max(0, e.cooldownUntil - Date.now())));
-                    return { equallyCooled: true, minRecoverMs: minT, all: arr.map(e => ({ url: e.url, reason: e.reason })) };
+                    return { equallyCooled: true, minRecoverMs: minT, pick: soonest, all: arr.map(e => ({ url: e.url, reason: e.reason })) };
                 },
                 allEntries: () => [...map.values()],
                 persist() { try { localStorage.setItem(HEALTH_POOL_KEY, JSON.stringify(this.allEntries().map(e => ({ url: e.url, status: e.status, fails: e.fails, cooldownUntil: e.cooldownUntil, reason: e.reason, okTotal: e.okTotal, priority: e.priority })))); } catch (_) {} },
@@ -736,9 +741,12 @@
         // 当前生效端点列表：用户配置多个端点（cfg.tts_endpoints，逗号分隔）→ 回退单个 cfg.tts_endpoint → 默认
         function getTtsEndpoints() {
             const c = loadCfg();
-            if (Array.isArray(c.tts_endpoints) && c.tts_endpoints.length) return c.tts_endpoints;
-            if (typeof c.tts_endpoints === 'string' && c.tts_endpoints.trim()) return c.tts_endpoints.split(',').map(s => s.trim()).filter(Boolean);
-            return [getTtsEndpoint()];
+            let list;
+            if (Array.isArray(c.tts_endpoints) && c.tts_endpoints.length) list = c.tts_endpoints;
+            else if (typeof c.tts_endpoints === 'string' && c.tts_endpoints.trim()) list = c.tts_endpoints.split(',').map(s => s.trim()).filter(Boolean);
+            else list = [getTtsEndpoint()];
+            // 去重：重复端点会导致并发探测失败计数翻倍（Critic MAJOR）
+            return [...new Set(list.map(s => String(s).trim()).filter(Boolean))];
         }
         // 探测所有端点并回报总可用性（任一 healthy 即 up；unknown 计入"待定"）
         async function probeAllEndpoints() {
@@ -1175,6 +1183,7 @@
                 setStatus('🔊 在线语音不可用，已切换离线朗读（浏览器内置音色）。');
                 const r = await synthWithBrowser(chunks, speed, myId);
                 if (r === 'ok') {
+                    pushTimeline('engine2', '离线朗读完毕（浏览器内置语音）。', true, 'engine2');
                     setStatus(prevStatus && /离线朗读完毕/.test(ttsStatus.textContent) ? prevStatus : '🔊 离线朗读完毕。');
                     return 'ok';
                 }
@@ -1203,11 +1212,17 @@
                 if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
                 // A2：单一入口按健康池路由在线端点（冷/坏端点自动跳过，healthy/unknown 都试）
                 const pool = healthPoolInit();
-                const pick = pool.pickHealthy();
                 const endpointList = getTtsEndpoints();
-                const endpoint = (endpointList.includes(pick.url) && !pick.equallyCooled)
-                    ? pick.url
-                    : (endpointList[0] || getTtsEndpoint());
+                // 确保健康池已学习配置列表中的所有端点（探测与路由同源，避免"仅探测时学习"）
+                for (const epUrl of endpointList) pool.get(epUrl);
+                const pick = pool.pickHealthy();
+                // 全冷时选最短恢复端点（减少首包等待）；healthy/unknown 优先；命中冷却端点则跳过
+                let endpoint;
+                if (pick.equallyCooled) {
+                    endpoint = (pick.pick && endpointList.includes(pick.pick.url)) ? pick.pick.url : (endpointList[0] || getTtsEndpoint());
+                } else {
+                    endpoint = (endpointList.includes(pick.url)) ? pick.url : (endpointList[0] || getTtsEndpoint());
+                }
                 const res = await fetchWithRetry(endpoint, {
                     method: 'POST',
                     headers,
@@ -1220,10 +1235,12 @@
                 }, 1);
                 if (!res.ok) {
                     pool.reportFail(endpoint, res.status);
+                    pushTimeline('tts', `在线端点 ${endpoint.split('/')[2]} 失败：HTTP ${res.status}`, false, 'engine1');
                     const t = await res.text().catch(() => '');
                     throw new Error(`语音服务返回 ${res.status}：${t.slice(0, 120)}`);
                 }
                 pool.reportOk(endpoint);
+                pushTimeline('tts', `在线合成成功（${endpoint.split('/')[2]}）`, true, 'engine1');
                 return await res.blob();
             } finally {
                 clearTimeout(timeoutId);
