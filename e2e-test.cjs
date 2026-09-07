@@ -59,7 +59,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
   await test('T4 闭环②端点宕机→自动降级离线朗读', async () => {
     await page.fill('#tts-input', '你好，这是测试文本。');
     await page.click('#speak-btn');
-    await page.waitForTimeout(2000);
+    // A2 多端点健康池：探测(≤5s) + 失败降级链(engine1→1.5→2) 需要更长等待
+    await page.waitForTimeout(4000);
     const status = await page.textContent('#tts-status');
     console.log('   状态: ' + status);
     // 应切换到离线引擎或提示不可用
@@ -106,10 +107,11 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
     await page.fill('#tts-input', '快捷键测试。');
     await page.focus('#tts-input');
     await page.keyboard.press('Control+Enter');
-    await page.waitForTimeout(1500);
+    // A2 探测(≤5s)+降级链；等待足够完成一次朗读
+    await page.waitForTimeout(4200);
     const status = await page.textContent('#tts-status');
     // 朗读应已启动（状态变化）
-    assert(/离线|在线|播放|合成|不可用/.test(status), 'Ctrl+Enter 未触发朗读，状态: ' + status);
+    assert(/离线|在线|播放|合成|不可用|朗读完毕/.test(status), 'Ctrl+Enter 未触发朗读，状态: ' + status);
   });
 
   // === T9: Esc 停止 ===
