@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v5 变更报告 — 引擎1.5 本地中文 WASM + 生产可达性修复（CRITIC 两轮闭环）</title>
+<style>
+  :root { --accent:#6366f1; --accent-2:#8b5cf6; --ink:#2c3e50; --muted:#555; --card:#fff; --bg:#f5f7fa; --ok:#16a34a; --warn:#d97706; --err:#dc2626; --code:#1e293b; --code-bg:#f1f5f9; }
+  @media (prefers-color-scheme: dark){ :root{ --ink:#f1f5f9; --muted:#a7b0c0; --card:#1f2430; --bg:#1f2430; --code-bg:#0f172a; } }
+  * { box-sizing: border-box; }
+  body { font-family:'Segoe UI',Tahoma,sans-serif; margin:0; padding:0; background:var(--bg); color:var(--ink); line-height:1.7; }
+  .container { max-width:880px; margin:0 auto; padding:32px 24px 64px; }
+  header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:2px solid var(--accent); }
+  header h1 { margin:0 0 8px; font-size:28px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  header .sub { color:var(--muted); font-size:14px; }
+  header .meta { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
+  header .badge { background:var(--accent); color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; }
+  h2 { color:var(--accent); border-left:4px solid var(--accent); padding-left:12px; margin-top:36px; font-size:21px; }
+  h3 { color:var(--accent-2); font-size:17px; margin-top:24px; }
+  .ctx-box { background:var(--card); border-left:4px solid var(--accent-2); padding:16px 20px; border-radius:6px; margin:16px 0; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+  .ctx-box .label { font-weight:bold; color:var(--accent); font-size:13px; text-transform:uppercase; letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; background:var(--card); border-radius:6px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.06); }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid #e2e8f0; font-size:14px; }
+  th { background:var(--accent); color:#fff; font-weight:600; }
+  tr:last-child td { border-bottom:none; }
+  .verdict-pass { color:var(--ok); font-weight:bold; }
+  .verdict-wait { color:var(--warn); font-weight:bold; }
+  .verdict-blocked { color:var(--err); font-weight:bold; }
+  code, pre { background:var(--code-bg); color:var(--code); padding:2px 6px; border-radius:3px; font-family:'Consolas',monospace; font-size:13px; }
+  pre { padding:14px; overflow-x:auto; line-height:1.5; }
+  .diff-add { color:var(--ok); background:#f0fdf4; padding:2px 4px; border-radius:3px; }
+  .diff-del { color:var(--err); background:#fef2f2; padding:2px 4px; border-radius:3px; text-decoration:line-through; }
+  ul, ol { padding-left:24px; }
+  li { margin:6px 0; }
+  .quiz { background:var(--card); border:2px solid var(--accent); border-radius:8px; padding:24px; margin-top:32px; box-shadow:0 6px 20px rgba(99,102,241,.15); }
+  .quiz h3 { margin-top:0; }
+  .quiz-q { margin:18px 0; padding:14px; background:var(--code-bg); border-radius:6px; border-left:3px solid var(--accent-2); }
+  .quiz-q .q-num { font-weight:bold; color:var(--accent); }
+  .quiz-options { margin-top:8px; }
+  .quiz-options label { display:block; padding:6px 10px; margin:4px 0; border:2px solid transparent; border-radius:4px; cursor:pointer; transition:all .15s; }
+  .quiz-options label:hover { border-color:var(--accent-2); background:var(--code-bg); }
+  .quiz-options input[type="radio"] { margin-right:8px; }
+  .quiz-answer { display:none; margin-top:8px; padding:10px; background:#f0fdf4; border-radius:4px; font-size:13px; color:var(--ok); }
+  .quiz-answer.show { display:block; }
+  .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:16px 0; }
+  .stat-card { background:var(--card); padding:16px; border-radius:6px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,.06); border-top:3px solid var(--accent); }
+  .stat-card .num { font-size:28px; font-weight:bold; color:var(--accent); }
+  .stat-card .lbl { font-size:12px; color:var(--muted); text-transform:uppercase; }
+  footer { text-align:center; margin-top:48px; padding-top:24px; border-top:1px solid #e2e8f0; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>v5 变更报告</h1>
+    <div class="sub">引擎1.5 本地中文 WASM + 生产可达性修复（CRITIC 两轮闭环）</div>
+    <div class="meta">
+      <span class="badge">stage-v5</span>
+      <span class="badge">2026-09-07</span>
+      <span class="badge">57/57 全绿</span>
+      <span class="badge">tag v4.2.0</span>
+    </div>
+  </header>
+
+  <h2>1. 上下文与直觉</h2>
+  <div class="ctx-box">
+    <div class="label">为什么做这个</div>
+    <p>项目是<strong>纯前端单文件静态页</strong>（<code>demo.html</code> + <code>sw.js</code> + <code>site.webmanifest</code>），三闭环：AI 对话 / 文本转语音 / 整页朗读。v4.1 已上线生产（tag <code>v4.1.1</code>），但有两个被忽略的"塌方点"：</p>
+    <ol>
+      <li><strong>断网 + 无系统中文包 = 无声</strong>：v4.1 的降级链是 引擎1(在线 F5-TTS) → 引擎2(浏览器 SpeechSynthesis) → 引擎3(文本兜底)。在线端点 2026-09-06 起持续 502，而 Linux 多数发行版没有中文语音包 → 引擎2 也失败 → 直接塌到文本兜底（无声）。这是 L1 级失效，不是体验差，是<strong>工具死亡</strong>。</li>
+      <li><strong>降级链实际没有第四选择</strong>：本地 WASM TTS 是唯一能"摆脱外部端点 + 系统音色双重依赖"的出路。Kokoro 82M ONNX 模型（Apache-2.0）+ 中文音素器是成熟方案，但 v4.1 的调研停在"候选确认"，没有落地。</li>
+    </ol>
+    <p><strong>直觉判断</strong>：先移植已被社区验证的中文音素器（kokoro PR #352，closed-unmerged 但 diff 可取回），再插入降级链成为引擎1.5。但"代码写上"≠"生产可用"——必须经过独立审查线程（CRITIC）从需求/逻辑/边界/质量/测试/实测六维反向攻击，把伪闭环拆掉。</p>
+  </div>
+
+  <h2>2. 做了什么</h2>
+
+  <div class="summary-grid">
+    <div class="stat-card"><div class="num">1.5</div><div class="lbl">引擎1.5 本地中文 WASM</div></div>
+    <div class="stat-card"><div class="num">28</div><div class="lbl">E2E 项全绿（17+3+5+4）</div></div>
+    <div class="stat-card"><div class="num">28</div><div class="lbl">单元项全绿（9 新）</div></div>
+    <div class="stat-card"><div class="num">2</div><div class="lbl">CRITIC 审查轮次</div></div>
+    <div class="stat-card"><div class="num">2.1MB</div><div class="lbl">kokoro-js vendor 落地</div></div>
+    <div class="stat-card"><div class="num">v4.2.0</div><div class="lbl">已推送远程 tag</div></div>
+  </div>
+
+  <h3>2.1 引擎1.5 中文合成链路（demo.html + tts-zh.js + engines/）</h3>
+  <table>
+    <tr><th>组件</th><th>说明</th></tr>
+    <tr><td><code>tts-zh.js</code></td><td>中文音素器：<code>normalizeSyllable</code>（声母21 + 韵母30 + 声调/舌尖元音/ü/y-w 零声母改写表，移植 kokoro PR #352 的 <code>phonemize-zh.js</code> 105 行）+ <code>phonemizeChinese</code> + <code>VOICES_ZH</code> 8 voice（4 女 4 男，与 HF <code>onnx-community/Kokoro-82M-v1.0-ONNX/voices/*.bin</code> 逐一对应）</td></tr>
+    <tr><td><code>demo.html</code> 引擎1.5</td><td>降级链插入 <code>引擎1 → 1.5(本地中文) → 2 → 3</code>；<code>cfg.engines_enabled.engine15</code> 开关全链路（UI checkbox → loadCfg/importCfg/saveCfg → synthChain 分支 → fillCfgForm）</td></tr>
+    <tr><td><code>generateZhWithVoice</code> 适配层</td><td>kokoro-js@1.2.1 的 <code>_validate_voice</code> 白名单只有 28 英文 voice，<code>zf_xiaobei</code> 必被拒。改为 <code>tokenizer → input_ids → generate_from_ids</code>（后者不校验 voice，且避免对已产出的中文 IPA 二次 espeak 音素化）</td></tr>
+    <tr><td><code>canUseZhWasm</code> 预检</td><td>前置探测（WASM 支持 + kokoro-js/pinyin-pro 动态 import），结果缓存 + <code>zhWasmFailReason</code> 失败透出；设置面板新增「🔧 引擎1.5 自检」按钮</td></tr>
+    <tr><td><code>engines/</code> vendor</td><td><code>pinyin-pro.mjs</code>(468KB) + <code>kokoro-js.mjs</code>(2.1MB) 静态副本，CDN 不可达时同源兜底（Node import 实测可用）</td></tr>
+    <tr><td>分块合成</td><td>按 <code>splitIntoChunks</code> 逐块 phonemize + generate + 按序播放，规避 5000 字无标点文本超上下文窗口截断</td></tr>
+  </table>
+
+  <h3>2.2 生产可达性修复（CRITIC 第一轮 P0/P1）</h3>
+  <table>
+    <tr><th>级别</th><th>问题</th><th>修复</th></tr>
+    <tr><td>P0</td><td>CSP 三连拦截：<code>script-src</code> 无 <code>esm.sh</code>/<code>'unsafe-eval'</code>，<code>connect-src</code> 无 <code>huggingface.co</code>，动态 import 与模型 fetch 全被拒</td><td>CSP 放行 <code>cdn.jsdelivr.net</code> / <code>huggingface.co</code> / <code>'unsafe-eval'</code>（WASM 必需）；依赖全部改走白名单域名</td></tr>
+    <tr><td>P0</td><td><code>./engines/*</code> vendor 从未落地（404），注释宣称"兜底"实为空头</td><td>真实落地 <code>engines/pinyin-pro.mjs</code> + <code>engines/kokoro-js.mjs</code> 并入库</td></tr>
+    <tr><td>P1</td><td>引擎1.5 失败只记日志，用户无从诊断</td><td>失败原因透出到状态栏 + 「引擎1.5 自检」按钮</td></tr>
+    <tr><td>P1</td><td><code>zhWasmBusy</code> 首次加载被停止后永久卡死</td><td><code>synthWithZhWasm</code> 每步判 <code>isStopped/myId</code>，<code>finally</code> 复位</td></tr>
+  </table>
+
+  <h3>2.3 边界与质量修复（CRITIC 第二轮）</h3>
+  <table>
+    <tr><th>级别</th><th>问题</th><th>修复</th></tr>
+    <tr><td>P1</td><td><code>zf_xiaobei</code> 被 <code>_validate_voice</code> 必抛错，真机也无法出声（伪闭环）</td><td><code>generateZhWithVoice</code> 适配层走 <code>generate_from_ids</code></td></tr>
+    <tr><td>P2</td><td><code>wavFromSamples</code> 把任意 TypedArray 按 Float32 错读（Int16 静默截断）</td><td>显式 Float32/Int16(先 /32768)/Array/非法 四分支</td></tr>
+    <tr><td>P2</td><td>引擎1.5 触发判定 <code>/^[^\x00-\x7f]/</code>：前导空格误不触发、全角字母/emoji 误触发</td><td><code>/\p{Script=Han}/u</code>（含 CJK 汉字才触发）</td></tr>
+    <tr><td>P2</td><td>T_ZH_1 断言 <code>reached15 || fellBack</code> 是自嗨（引擎2 兜底即 PASS）</td><td>断言加引擎1.5 尝试痕迹（status + <code>engine15-probe</code>/<code>synthChain-engine15</code> 日志）</td></tr>
+    <tr><td>P2</td><td>单元测试硬编码 Temp 绝对路径，换机即红</td><td>改走仓库 <code>engines/pinyin-pro.mjs</code> vendor</td></tr>
+    <tr><td>P2</td><td>README 仍写"WASM 未落地"、无 v4.2 测试基线</td><td>同步 v4.2（四级降级链 + CSP 披露 + 57/57 + 真机结构性前提）</td></tr>
+  </table>
+
+  <h2>3. 验证状态（诚实）</h2>
+  <table>
+    <tr><th>套件</th><th>命令</th><th>结果</th><th>证据等级</th></tr>
+    <tr><td>E2E 主套件</td><td><code>node e2e-test.cjs</code></td><td class="verdict-pass">17/17 PASS</td><td>已验证（真实运行）</td></tr>
+    <tr><td>E2E SW 跨域</td><td><code>node e2e-test-sw.cjs</code></td><td class="verdict-pass">3/3 PASS</td><td>已验证</td></tr>
+    <tr><td>E2E 配置中心</td><td><code>node e2e-test-cfg.cjs</code></td><td class="verdict-pass">5/5 PASS</td><td>已验证</td></tr>
+    <tr><td>E2E 引擎1.5</td><td><code>node e2e-test-zh.cjs</code></td><td class="verdict-pass">4/4 PASS</td><td>已验证（含自检按钮）</td></tr>
+    <tr><td>单元 ×4</td><td><code>node --test unit-test*.cjs</code></td><td class="verdict-pass">28/28 PASS</td><td>已验证（U_ZH 新增 8/9）</td></tr>
+    <tr><td>vendor 可 import</td><td>Node ESM import</td><td class="verdict-pass">pinyin() 产出数字拼音</td><td>已验证</td></tr>
+    <tr><td>真机出声（含 iOS WASM 内存）</td><td>真机浏览器跑引擎1.5</td><td class="verdict-blocked">待真机</td><td>外部环境受限（82MB 模型 + WASM 推理，headless 不可跑）</td></tr>
+  </table>
+  <p><strong>诚实披露</strong>：引擎1.5 的「依赖可达性 / 降级链 / 单元覆盖 / 文档同步」已真实闭环；「本地中文可出声」是代码路径已通（适配层 + 分块合成 + vendor 就绪），但真实出声依赖 82MB 模型下载与 WASM 推理，需你在真机执行：⚙️ 引擎1.5 自检通过后，输入中文点「🔊 朗读这段话」复验。若真机不可用则回落到引擎2/3。</p>
+
+  <h2>4. 剩余风险与边界</h2>
+  <ul>
+    <li><strong>真机出声待测（结构性前提已标注）</strong>：语音质量官方自评 C/D（非「高质量」）；iOS Safari WASM 内存限制未验证。</li>
+    <li><strong><code>'unsafe-eval'</code> 引入</strong>：WASM 引擎1.5 必需；v4.3 P3-1 计划用编译后的 wasm 收敛。</li>
+    <li><strong>预检与模型拉取间隔</strong>：<code>canUseZhWasm</code> 只测两个依赖 import，HF 模型 fetch（82MB）在首次合成时才发生——自检通过 ≠ 模型一定能拉下来，但失败会透出到状态栏并回落引擎2/3。</li>
+    <li><strong>内联音素器双实现漂移</strong>：<code>demo.html</code> 内联版与 <code>tts-zh.js</code> 独立维护（单文件部署约束），U_ZH_8 的 WAV 断言 + U_ZH_4/5 的 IPA 断言提供回归保护，但改动需两处同步。</li>
+  </ul>
+
+  <div class="quiz">
+    <h3>📋 变更测验（你必须通过）</h3>
+    <p style="color:var(--muted);font-size:13px;">逐题选择，点击"显示答案"自检。答错请回读对应章节。</p>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q1.</span> v4.1 的降级链是几级？v5 插入引擎1.5 后变成几级，插入位置在哪？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q1"> A. 3级 → 4级，插在引擎3之后</label>
+        <label><input type="radio" name="q1"> B. 3级 → 4级，插在引擎1（在线）与引擎2（浏览器）之间</label>
+        <label><input type="radio" name="q1"> C. 2级 → 3级，插在引擎1之后</label>
+        <label><input type="radio" name="q1"> D. 3级 → 5级，插在引擎2与引擎3之间</label>
+      </div>
+      <button onclick="document.getElementById('a1').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a1">✅ B。v4.1 是 引擎1(在线)→2(浏览器)→3(文本兜底) 三级；v5 插入引擎1.5（本地中文 WASM）成为 引擎1→1.5→2→3 四级降级链。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q2.</span> kokoro-js@1.2.1 直接传 <code>voice: 'zf_xiaobei'</code> 给 <code>generate()</code> 会发生什么？v5 用什么绕开？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q2"> A. 正常合成 → 无需绕开</label>
+        <label><input type="radio" name="q2"> B. <code>_validate_voice</code> 白名单无中文 voice，必抛错 → 用 <code>generate_from_ids</code> 适配层（tokenizer→input_ids→合成）</label>
+        <label><input type="radio" name="q2"> C. 浏览器自动回退英文 voice → 无需处理</label>
+        <label><input type="radio" name="q2"> D. 抛错但可忽略 → 用 <code>try/catch</code> 吞掉</label>
+      </div>
+      <button onclick="document.getElementById('a2').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a2">✅ B。kokoro-js@1.2.1 的 <code>_validate_voice</code> 白名单只有 28 个英文 voice，<code>zf_xiaobei</code> 必被拒。v5 用 <code>generateZhWithVoice</code> 走 <code>tokenizer → input_ids → generate_from_ids</code>（不校验 voice，且避免二次 espeak 音素化）。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q3.</span> v5 引擎1.5 的触发判定为什么从「首字符非 ASCII」改成「含 CJK 汉字」？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q3"> A. 前者更快</label>
+        <label><input type="radio" name="q3"> B. 前者对前导空格误不触发、对全角字母/emoji 误触发 → <code>/\p{Script=Han}/u</code> 只在真的含汉字时触发</label>
+        <label><input type="radio" name="q3"> C. 前者不支持 Unicode</label>
+        <label><input type="radio" name="q3"> D. 没有区别，只是风格</label>
+      </div>
+      <button onclick="document.getElementById('a3').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a3">✅ B。`' 你好'`（前导空格）旧判定误不触发；`'ＡＢＣ'`/`'😀'` 误触发。改为 <code>/\p{Script=Han}/u</code> 后仅含 CJK 汉字才走引擎1.5。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q4.</span> 引擎1.5 为什么不能整段合成，而要分块合成？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q4"> A. 分块更省内存（82MB 模型放不下）</label>
+        <label><input type="radio" name="q4"> B. 5000 字无标点文本会超模型上下文窗口，整段合成丢尾 → 按 <code>splitIntoChunks</code> 逐块 phonemize+generate+按序播放</label>
+        <label><input type="radio" name="q4"> C. 分块才能显示进度条</label>
+        <label><input type="radio" name="q4"> D. 无所谓，整段也行</label>
+      </div>
+      <button onclick="document.getElementById('a4').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a4">✅ B。Kokoro STTS2 上下文窗口有限，5000 字无标点串整段塞给 <code>phonemize</code> 会 <code>truncation:true</code> 截断丢尾。v5 复用 <code>splitIntoChunks</code> 逐块合成拼接。</div>
+    </div>
+
+    <div class="quiz-q">
+      <div><span class="q-num">Q5.</span> 引擎1.5 已真实闭环到哪一步？还有哪一步必须真机才能确认？</div>
+      <div class="quiz-options">
+        <label><input type="radio" name="q5"> A. 全部闭环，无需真机</label>
+        <label><input type="radio" name="q5"> B. 依赖可达性/降级链/单元覆盖/文档已闭环；「真机出声（含 iOS WASM 内存）」待真机，代码路径已通（适配层+分块+vendor）</label>
+        <label><input type="radio" name="q5"> C. 只写了代码，什么都没验证</label>
+        <label><input type="radio" name="q5"> D. 真机已通过，可上线</label>
+      </div>
+      <button onclick="document.getElementById('a5').classList.add('show')" style="margin-top:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">显示答案</button>
+      <div class="quiz-answer" id="a5">✅ B。57/57 测试全绿 + vendor 可 import + CSP 放行已真实验证；「真机出声」是 82MB 模型 + WASM 推理，headless 不可跑，代码路径已通但需你真机跑 ⚙️ 引擎1.5 自检 → 朗读中文复验。</div>
+    </div>
+  </div>
+
+  <footer>
+    v5 变更报告 · 2026-09-07 · commit <code>439f3f8</code> · tag <code>v4.2.0</code> · demo.html 1676 行 / gzip 28532B · 全量回归 57/57 PASS
+  </footer>
+</div>
+</body>
+</html>
