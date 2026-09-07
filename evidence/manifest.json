@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-09-08",
+  "features": [
+    {
+      "id": "A1",
+      "name": "透明操作时间线（黑匣子日志全开）",
+      "source": "demo.html (pushTimeline/loadTimeline/renderTimeline/exportTimeline)",
+      "expect": { "require_evidence": ["timeline-btn", "tts_timeline_v1", "engine1/engine15/engine2/engine3 事件"] },
+      "verifiedBy": "e2e A1 面板 + 朗读事件 7 条目断言"
+    },
+    {
+      "id": "A2",
+      "name": "多端点健康自愈池",
+      "source": "demo.html (healthPoolInit/probeAllEndpoints) + unit-test-health.cjs",
+      "expect": { "require_evidence": ["cfg-tts-endpoints", "冷却 TTL 自动复活", "pickHealthy 路由"] },
+      "verifiedBy": "unit test A2_1-5 (5 项) + E2E cfg 5 项全绿"
+    },
+    {
+      "id": "A3",
+      "name": "验收卡台账门禁",
+      "source": "verify-acceptance.cjs",
+      "expect": { "require_evidence": ["E2E ≥29", "UNIT ≥33", "evidence/acceptance-ledger.ndjson"] },
+      "verifiedBy": "node verify-acceptance.cjs → TOTAL 62 PASS + ledger ndjson"
+    }
+  ],
+  "notes": "本轮 Phase B：A1+A2+A3 批次已落地并全量回归 29 E2E + 33 单元全绿。README/workflow_status 文档更新待下一步同步。"
+}
