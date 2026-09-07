@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"ChatTTS 桌面版默认权限：仅核心窗口事件 + WebView 资源访问","local":true,"windows":["main"],"permissions":["core:default"]}}

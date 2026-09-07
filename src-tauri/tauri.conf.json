@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ChatTTS",
+  "version": "4.2.0",
+  "identifier": "com.chattts.desktop",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "在线聊天转语音 — ChatTTS 桌面版",
+        "width": 980,
+        "height": 760,
+        "minWidth": 640,
+        "minHeight": 520,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' customprotocol: asset:; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://huggingface.co; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src ipc: http://ipc.localhost https://cdn.jsdelivr.net https://huggingface.co; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data: https://cdn.jsdelivr.net; media-src 'self' asset: blob: data:; manifest-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "category": "Utility",
+    "shortDescription": "纯前端 AI 对话 + 文本转语音 + 整页朗读",
+    "longDescription": "在线聊天转语音桌面版：三级降级链（在线 F5-TTS → 本地中文 WASM Kokoro → 浏览器语音）+ 引擎1.5 本地中文合成 + 断网可用。",
+    "icon": ["icons/icon.ico", "icons/icon.png"]
+  },
+  "plugins": {}
+}

@@ -1,0 +1,25 @@
+[package]
+name = "chat-tts-desktop"
+version = "4.2.0"
+description = "在线聊天转语音 — 纯前端 TTS 桌面版（引擎1.5 本地中文 WASM）"
+authors = ["wdawdwa"]
+edition = "2021"
+
+[lib]
+name = "chat_tts_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
