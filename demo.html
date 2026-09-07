@@ -755,10 +755,20 @@
                     const headers = {};
                     const apiKey = await getApiKey();
                     if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
-                    const res = await fetch(url + (url.includes('/voices') ? '' : '/v1/voices'), { signal: ctrl.signal, headers });
-                    clearTimeout(t);
-                    if (res.ok) { pool.reportOk(url); return { url, up: true }; }
-                    pool.reportFail(url, res.status); return { url, up: false };
+                // A2 修复：TTS 端点形如 https://host/v1/audio/speech，语音列表应是 https://host/v1/voices。
+                // 不能在 TTS 端点后直接拼 /v1/voices（会得到 /v1/audio/speech/v1/voices）。正确做法：
+                // 1) 若配置了 voices_endpoint 直接用；2) 否则把 TTS 端点的末段文件名（/audio/speech）换成 /v1/voices。
+                const voicesUrl = (() => {
+                    const cv = loadCfg().voices_endpoint;
+                    if (cv) return cv;
+                    const m = url.match(/^(https?:\/\/[^/]+)\/v\d+\/[^/]+/);
+                    if (m) return m[1] + '/v1/voices';
+                    return url;
+                })();
+                const res = await fetch(voicesUrl, { signal: ctrl.signal, headers });
+                clearTimeout(t);
+                if (res.ok) { pool.reportOk(url); return { url, up: true }; }
+                pool.reportFail(url, res.status); return { url, up: false };
                 } catch (e) {
                     pool.reportFail(url, undefined, e.message || '网络错误');
                     return { url, up: false };
