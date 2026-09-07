@@ -346,3 +346,58 @@ $ node e2e-test-sw.cjs
   - **总计 44/44 PASS，零回归**
 - **git commit**：`f681b97` 之后追加（待提交）
 - **下一步**：v4.2 P0-1 Kokoro WASM 引擎1.5 真机测 / P1-2 字级高亮 / P2-* 体验增强
+
+---
+
+## 9. v4.2 引擎1.5 本地中文 WASM 落地闭环（stage-v5，2026-09-07）
+
+> 本节记录 v4.2 P0-1-B（引擎1.5 本地中文 WASM）落地 + 独立 CRITIC 两轮审查闭环。**"真机出声"仍为外部受限待验证项，代码路径已通。**
+
+### 9.1 复核真相（关键反转）
+
+| 项 | 旧认知（v4.1 指南）| 现状（2026-09-07 复核）| 证据等级 |
+|----|-------------------|----------------------|---------|
+| kokoro-js@1.2.1 中文支持 | "首选，待真机测 zf_xiaobei 出声" | **不支持中文**：voice 表仅 28 英文（`_validate_voice` 对 zf_xiaobei 必抛错）；phonemizer 白名单 `a6=["en"]`；维护者 xenova #209 确认缺 misaki-JS | `静态确认`（bundle 逆向）|
+| 中文路线 | "真机测通过→落地" | PR#352（closed-unmerged，diff 9363B 可取回）是唯一社区方案：phonemize-zh.js 105 行 + pinyin-pro + 8 中文 voice | `已验证`（diff 全解析）|
+| 模型体积 | 86MB（文档估算）| **82MB**（`onnx/model_q8f16.onnx`，HF blobs API 实测）| `已验证`|
+| `zm_` 男声 | "未翻页，禁止臆测" | **4 男全存在**（zm_yunjian/yunxi/yunxia/yang）+ 4 女 | `已验证`|
+| README 陈旧论断 | "仍称 v3" | 已在 `330b584` 同步至 v4.1，不再陈旧 | `已验证`|
+
+### 9.2 落地提交与 Promise
+
+| commit | 内容 |
+|--------|------|
+| `055090c` | feat：引擎1.5 本地 WASM 中文 TTS（音素器 + 8 voice + 开关）|
+| `439f3f8` | fix：生产可达性修复（CSP `unsafe-eval`/jsdelivr/HF 放行 + engines/ vendor 落地 + `generate_from_ids` 适配层 + 分块合成 + CJK 判定 + 失败透出）— **tag v4.2.0** |
+| `b0181e2` | docs：v5 变更报告 + 交互测验 |
+| `490715f` | docs：主改进指南挂接 v4.2 落地态 + 指向 v4.2升级版 |
+
+### 9.3 CRITIC 两轮审查闭环
+
+| 轮次 | 发现 | 处置 |
+|------|------|------|
+| 一轮 | P0×3（CSP 三连拦截 / vendor 404 / `_validate_voice` 必抛错）、P1×4、P2×8 | 全部修复（commit `439f3f8`）|
+| 二轮 | 残留 P1×2（注释"替换默认音素器"无实现 / `zf_xiaobei` 任何环境必抛错）| `generateZhWithVoice` 适配层（`generate_from_ids`）已落地 |
+
+### 9.4 全量回归（真实运行，stage-v5）
+
+| 套件 | 命令 | 结果 |
+|------|------|------|
+| E2E 主 | `node e2e-test.cjs` | **17/17** |
+| E2E SW | `node e2e-test-sw.cjs` | **3/3** |
+| E2E CFG | `node e2e-test-cfg.cjs` | **5/5** |
+| E2E 引擎1.5 | `node e2e-test-zh.cjs` | **4/4**（T_ZH_1 含引擎1.5 尝试痕迹断言 + T_ZH_4 自检按钮）|
+| 单元 ×4 | `node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs` | **28/28**（新增 U_ZH 9）|
+| **合计** | — | **57/57 PASS** |
+
+### 9.5 剩余真实风险（诚实披露）
+
+1. **真机出声待测**：82MB 模型 + WASM 推理 headless 不可跑；真机路径 = ⚙️ 引擎1.5 自检 → 朗读中文复验。失败回落引擎2/3。
+2. **质量自评 C/D**：Kokoro 官方 `overallGrade:D`，UI 禁用"高质量"，用"本地可用"。
+3. **`unsafe-eval`**：WASM 必需，v4.3 P3-1 计划收敛。
+4. **iOS Safari WASM 内存**：待真机压测。
+5. **双实现漂移**：demo.html 内联音素器与 tts-zh.js 独立维护，U_ZH_4/5/8 断言守护。
+
+### 9.6 下一步（v4.3 参考序）
+
+- 真机出声复验（用户侧）→ 通过则引擎1.5 完整闭环；P1-2 字级高亮 / P2-1 听写 / P2-2 可视化 / P3-1 CSP hash 收敛 / P3-2 Lighthouse / P4-1 axe-core。
