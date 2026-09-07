@@ -280,6 +280,11 @@
                 <small style="color:var(--muted);">留空用默认 speech.ai.unturf.com。兼容 OpenAI /v1/audio/speech 格式即可。</small>
             </div>
             <div style="margin-bottom:12px;">
+                <label for="cfg-tts-endpoints" style="display:block;font-weight:600;margin-bottom:4px;">备用 TTS 端点（failover，逗号分隔）</label>
+                <input type="text" id="cfg-tts-endpoints" placeholder="https://a.example/v1/audio/speech, https://b.example/v1/audio/speech" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
+                <small style="color:var(--muted);">多个端点时会自动健康自愈：坏端点冷却拉黑、定时重测自动复活，只在 healthy/unknown 间路由。</small>
+            </div>
+            <div style="margin-bottom:12px;">
                 <label for="cfg-tts-model" style="display:block;font-weight:600;margin-bottom:4px;">TTS 模型名</label>
                 <input type="text" id="cfg-tts-model" placeholder="tts-1-f5" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--ink);">
             </div>
@@ -343,6 +348,7 @@
         const speakBtn   = document.getElementById('speak-btn');
         const stopBtn    = document.getElementById('stop-btn');
         const statusEl   = document.getElementById('tts-status');
+        const ttsStatus  = statusEl; // 别名：A2 降级保留状态用（与 setStatus 同源）
         const noticeEl   = document.getElementById('tts-notice');
         const voiceSel   = document.getElementById('voice-select');
         const readBtn    = document.getElementById('read-page-btn');
@@ -368,6 +374,7 @@
         const DEFAULT_CFG = {
             version: CFG_VERSION,
             tts_endpoint: '',
+            tts_endpoints: [],      // A2：多端点 failover 列表（逗号分隔字符串也兼容）
             tts_model: '',
             voices_endpoint: '',
             voices_custom: [],      // 用户手动添加的语音列表
@@ -452,8 +459,7 @@
 
         // ============ 工具：错误日志（localStorage 环形缓冲，可导出） ============
         const ERR_KEY = 'tts_err_log_v2';
-        function logError(msg, ctx) {
-            try {
+        function logError(msg, ctx) {            try {
                 const log = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
                 log.push({ msg: String(msg).slice(0,300), ctx: ctx||'', ts: Date.now() });
                 localStorage.setItem(ERR_KEY, JSON.stringify(log.slice(-50)));
@@ -570,24 +576,105 @@
         // 引擎1：speech.ai.unturf.com（F5-TTS，42语音，质量最高）
         // 引擎2：浏览器原生 SpeechSynthesis（离线，音色机械，需有中文语音）
         // 引擎3：友好提示 + 一键复制文本（兜底，至少不黑屏）
+        // A2：多端点健康自愈池（引用单元测试 unit-test-health.cjs 同一算法，改一处必须同步）
+        const HEALTH_POOL_KEY = 'tts_health_pool_v1';
+        let ttsHealthPool = null;              // 端点健康池实例（懒初始化）
+        let ttsEndpoints = [];                 // 当前生效端点列表（优先用户配置，回退默认）
+        function healthPoolInit() {
+            if (ttsHealthPool) return ttsHealthPool;
+            const map = new Map();
+            const pool = {
+                get(url, priority) {
+                    let e = map.get(url);
+                    if (!e) { e = { url, status: 'unknown', fails: 0, cooldownUntil: 0, reason: '', okTotal: 0, priority: typeof priority === 'number' ? priority : 5 }; map.set(url, e); }
+                    else if (typeof priority === 'number') e.priority = priority;
+                    return e;
+                },
+                now: () => Date.now(),
+                reportOk(url) { const e = this.get(url); e.status = 'healthy'; e.fails = 0; e.cooldownUntil = 0; e.reason = ''; e.okTotal = (e.okTotal || 0) + 1; this.persist(); },
+                reportFail(url, status, reason = '') {
+                    const e = this.get(url);
+                    e.fails = (e.fails || 0) + 1;
+                    e.lastProbedAt = Date.now();
+                    const cd = shouldCooldown(status);
+                    e.status = 'cooled';
+                    e.reason = reason || (cd ? `HTTP ${status}` : `HTTP ${status}（客户端错误）`);
+                    const base = 1000;
+                    e.cooldownUntil = Date.now() + (cd ? Math.min(base * (2 ** Math.min(e.fails - 1, 8)), 300000) : 15000);
+                    this.persist();
+                },
+                // 冷却 TTL 到期自动复活（litellm CooldownCache 思想）
+                reviveIfDue(url) {
+                    const e = map.get(url);
+                    if (e && e.cooldownUntil && e.cooldownUntil <= Date.now()) { e.status = 'healthy'; e.fails = 0; e.cooldownUntil = 0; e.reason = ''; }
+                    return e;
+                },
+                // 路由：优先 healthy，其次 unknown，最后全冷报最短恢复
+                pickHealthy() {
+                    const arr = [...map.values()].map(e => { this.reviveIfDue(e.url); return e; }).sort((a, b) => (b.priority || 5) - (a.priority || 5));
+                    const alive = arr.filter(e => e.status === 'healthy');
+                    if (alive.length) return alive[0];
+                    const pending = arr.filter(e => e.status === 'unknown');
+                    if (pending.length) return pending[0];
+                    const minT = Math.min(...arr.map(e => Math.max(0, e.cooldownUntil - Date.now())));
+                    return { equallyCooled: true, minRecoverMs: minT, all: arr.map(e => ({ url: e.url, reason: e.reason })) };
+                },
+                allEntries: () => [...map.values()],
+                persist() { try { localStorage.setItem(HEALTH_POOL_KEY, JSON.stringify(this.allEntries().map(e => ({ url: e.url, status: e.status, fails: e.fails, cooldownUntil: e.cooldownUntil, reason: e.reason, okTotal: e.okTotal, priority: e.priority })))); } catch (_) {} },
+                load() {
+                    try {
+                        const raw = JSON.parse(localStorage.getItem(HEALTH_POOL_KEY) || '[]');
+                        for (const r of raw) { const e = map.get(r.url); if (e) Object.assign(e, r); else map.set(r.url, r); }
+                    } catch (_) {}
+                }
+            };
+            pool.load();
+            ttsHealthPool = pool;
+            return pool;
+        }
+        function shouldCooldown(status) {
+            if (!status) return true;
+            return ['401','404','408','429','500','502','503','504','507','524'].includes(String(status));
+        }
+        // 当前生效端点列表：用户配置多个端点（cfg.tts_endpoints，逗号分隔）→ 回退单个 cfg.tts_endpoint → 默认
+        function getTtsEndpoints() {
+            const c = loadCfg();
+            if (Array.isArray(c.tts_endpoints) && c.tts_endpoints.length) return c.tts_endpoints;
+            if (typeof c.tts_endpoints === 'string' && c.tts_endpoints.trim()) return c.tts_endpoints.split(',').map(s => s.trim()).filter(Boolean);
+            return [getTtsEndpoint()];
+        }
+        // 探测所有端点并回报总可用性（任一 healthy 即 up；unknown 计入"待定"）
+        async function probeAllEndpoints() {
+            const list = getTtsEndpoints();
+            if (!list.length) { ttsEndpointUp = false; return false; }
+            const pool = healthPoolInit();
+            const results = await Promise.all(list.map(async (url) => {
+                const e = pool.get(url);
+                // 冷却期跳过真实探测（节约请求）
+                if (e.status === 'cooled' && e.cooldownUntil > Date.now()) return { url, up: false, cooled: true };
+                try {
+                    const ctrl = new AbortController();
+                    const t = setTimeout(() => ctrl.abort(), 4000);
+                    const headers = {};
+                    const apiKey = await getApiKey();
+                    if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+                    const res = await fetch(url + (url.includes('/voices') ? '' : '/v1/voices'), { signal: ctrl.signal, headers });
+                    clearTimeout(t);
+                    if (res.ok) { pool.reportOk(url); return { url, up: true }; }
+                    pool.reportFail(url, res.status); return { url, up: false };
+                } catch (e) {
+                    pool.reportFail(url, undefined, e.message || '网络错误');
+                    return { url, up: false };
+                }
+            }));
+            ttsEndpointUp = results.some(r => r.up) || null;
+            return ttsEndpointUp;
+        }
         async function probeTtsEndpoint() {
-            // 5 秒内不重复探测
+            // 5 秒内不重复探测（兼容旧调用方：保留布尔语义）
             if (ttsEndpointUp !== null && Date.now() - ttsEndpointCheckedAt < 5000) return ttsEndpointUp;
             ttsEndpointCheckedAt = Date.now();
-            // P0-3: 用户配置了端点则探测用户的；否则默认
-            try {
-                const ctrl = new AbortController();
-                const t = setTimeout(() => ctrl.abort(), 4000);
-                const headers = {};
-                const apiKey = await getApiKey();
-                if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
-                const res = await fetch(getVoicesEndpoint(), { signal: ctrl.signal, headers });
-                clearTimeout(t);
-                ttsEndpointUp = res.ok;
-            } catch (e) {
-                ttsEndpointUp = false;
-            }
-            return ttsEndpointUp;
+            return probeAllEndpoints();
         }
 
         function loadSynthVoices() {
@@ -722,7 +809,18 @@
             if (!KokoroTts || !pinyinMod || typeof pinyinMod.pinyin !== 'function') throw new Error('本地中文引擎依赖加载失败');
             // 中文音素化：外置 phonemizeZh 直接把汉字 → Kokoro IPA；英文片段保持原样（本引擎不做二次合成）。
             // generate 阶段用 generate_from_ids 绕过英文 voice 白名单与二次 espeak（见 generateZhWithVoice 注释）。
-            const tts = await KokoroTts.from_pretrained(KOKORO_MODEL, { dtype: 'q8f16', device: 'wasm' });
+            // dtype 兼容链：q8f16 是 kokoro-js@1.2.1 官方默认，若模型跑 0.19 onnxruntime 拒绝则回退 q8（A2 观察修复）
+            let tts = null;
+            for (const dtype of ['q8f16', 'q8']) {
+                try {
+                    tts = await KokoroTts.from_pretrained(KOKORO_MODEL, { dtype, device: 'wasm' });
+                    break;
+                } catch (e) {
+                    if (dtype === 'q8f16' && /dtype/i.test(String(e && e.message || e))) continue; // 仅 dtype 拒绝才试下档
+                    throw e;
+                }
+            }
+            if (!tts) throw new Error('本地中文引擎模型加载失败（q8f16/q8 均不可用）');
             zhWasmTts = { tts, pinyin: pinyinMod.pinyin };
             return zhWasmTts;
         }
@@ -874,7 +972,7 @@
             // 引擎1：在线 F5-TTS
             if (cfg.engines_enabled.engine1 !== false) {
                 const up = await probeTtsEndpoint();
-                if (up) {
+                if (up || up === null) { // A2：全部 unknown（从未探测）也放行，交给 fetchTTSChunk 内路由立刻判别
                     try {
                         currentEngine = 1;
                         progressEl.style.display = 'block';
@@ -948,6 +1046,7 @@
                     // r === 'error' 继续降级（模型下载失败/依赖不可用等，原因已透出在 synthWithZhWasm 状态栏）
                 } catch (e) {
                     logError(e.message, 'synthChain-engine15');
+                    // 引擎2 分支会覆盖此文案；若 engine2 也失败到引擎3，最终文案由引擎3 兜底
                     setStatus('🀄 本地中文引擎异常：' + (e.message || e) + '，已切换其他引擎。');
                 }
             }
@@ -959,9 +1058,14 @@
                 progressEl.max = chunks.length;
                 progressEl.value = 0;
                 audioBlobs = []; // 浏览器语音无法产出 blob，下载将走文本兜底提示
+                // 注意：此处保留引擎1 失败状态文案，仅当 engine2 启动时才覆盖（避免中间态把状态洗掉）
+                const prevStatus = ttsStatus ? ttsStatus.textContent : '';
                 setStatus('🔊 在线语音不可用，已切换离线朗读（浏览器内置音色）。');
                 const r = await synthWithBrowser(chunks, speed, myId);
-                if (r === 'ok') return 'ok';
+                if (r === 'ok') {
+                    setStatus(prevStatus && /离线朗读完毕/.test(ttsStatus.textContent) ? prevStatus : '🔊 离线朗读完毕。');
+                    return 'ok';
+                }
                 if (r === 'stopped') return 'stopped';
                 // r === 'error' 继续降级
             }
@@ -984,7 +1088,14 @@
                 const headers = { 'Content-Type': 'application/json' };
                 const apiKey = await getApiKey();
                 if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
-                const res = await fetchWithRetry(getTtsEndpoint(), {
+                // A2：单一入口按健康池路由在线端点（冷/坏端点自动跳过，healthy/unknown 都试）
+                const pool = healthPoolInit();
+                const pick = pool.pickHealthy();
+                const endpointList = getTtsEndpoints();
+                const endpoint = (endpointList.includes(pick.url) && !pick.equallyCooled)
+                    ? pick.url
+                    : (endpointList[0] || getTtsEndpoint());
+                const res = await fetchWithRetry(endpoint, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({
@@ -995,9 +1106,11 @@
                     signal: controller.signal
                 }, 1);
                 if (!res.ok) {
+                    pool.reportFail(endpoint, res.status);
                     const t = await res.text().catch(() => '');
                     throw new Error(`语音服务返回 ${res.status}：${t.slice(0, 120)}`);
                 }
+                pool.reportOk(endpoint);
                 return await res.blob();
             } finally {
                 clearTimeout(timeoutId);
@@ -1089,7 +1202,8 @@
                     // 被中止，不更新 UI
                 } else if (r === 'ok') {
                     progressEl.value = progressEl.max;
-                    setStatus(currentEngine === 1 ? '播放完毕。' : '🔊 离线朗读完毕。');
+                    // 引擎2 完成时 synthChain 已把状态置为「🔊 离线朗读完毕」；此处仅引擎1 在线走「播放完毕」
+                    if (!/离线朗读完毕/.test(ttsStatus ? ttsStatus.textContent : '')) setStatus(currentEngine === 1 ? '播放完毕。' : '🔊 离线朗读完毕。');
                     saveHistory(text, voice);
                     const finishId = myId;
                     setTimeout(() => {
@@ -1517,6 +1631,7 @@
         const cfgBtn = document.getElementById('cfg-btn');
         const cfgPanel = document.getElementById('cfg-panel');
         const cfgTtsEndpoint = document.getElementById('cfg-tts-endpoint');
+        const cfgTtsEndpoints = document.getElementById('cfg-tts-endpoints');
         const cfgTtsModel = document.getElementById('cfg-tts-model');
         const cfgVoicesEndpoint = document.getElementById('cfg-voices-endpoint');
         const cfgApiKey = document.getElementById('cfg-api-key');
@@ -1535,6 +1650,7 @@
         function fillCfgForm() {
             const c = loadCfg();
             cfgTtsEndpoint.value = c.tts_endpoint || '';
+            cfgTtsEndpoints.value = (Array.isArray(c.tts_endpoints) ? c.tts_endpoints.join(', ') : (c.tts_endpoints || ''));
             cfgTtsModel.value = c.tts_model || '';
             cfgVoicesEndpoint.value = c.voices_endpoint || '';
             cfgApiKey.value = ''; // 不回显，安全
@@ -1553,6 +1669,9 @@
             try {
                 const c = loadCfg();
                 c.tts_endpoint = cfgTtsEndpoint.value.trim();
+                // A2：多端点 failover 列表（逗号分隔 → 数组；留空则删除）
+                const rawList = cfgTtsEndpoints.value.split(',').map(s => s.trim()).filter(Boolean);
+                c.tts_endpoints = rawList;
                 c.tts_model = cfgTtsModel.value.trim();
                 c.voices_endpoint = cfgVoicesEndpoint.value.trim();
                 c.engines_enabled = { engine1: cfgEng1.checked, engine15: cfgEng15.checked, engine2: cfgEng2.checked, engine3: cfgEng3.checked };
@@ -1561,6 +1680,7 @@
                 cfgStatus.textContent = '✅ 已保存。端点切换将生效。';
                 // 端点变更后强制重探测
                 ttsEndpointUp = null;
+                ttsHealthPool = null; // 端点列表变更 → 重建健康池（保留冷却记忆按 URL 复载）
                 probeTtsEndpoint().then(up => updateEndpointBadge(up));
                 initVoices();
             } catch (e) {
@@ -1661,7 +1781,9 @@
 
         waitForApi()
             .then(() => {
-                setStatus('✅ 已就绪：可朗读文本，或在下方聊天后点回复旁的 🔊。');
+                // 初始就绪文案仅在无更重要的状态时显示（如端点宕机后降级已完成）
+                const cur = ttsStatus.textContent;
+                if (!cur || /就绪|已加载|加载中|检测中/.test(cur)) setStatus('✅ 已就绪：可朗读文本，或在下方聊天后点回复旁的 🔊。');
                 reviveChatModel();
                 initVoices();
             })
