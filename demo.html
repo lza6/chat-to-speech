@@ -11,7 +11,7 @@
     <link rel="manifest" href="site.webmanifest">
     <!-- Content-Security-Policy：限制脚本/连接来源，降低远程脚本供应链风险。
          font-src/style-src 放行 uncloseai.com 以加载库自带字体与样式（ui.js 动态注入） -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://uncloseai.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://uncloseai.com; connect-src 'self' https://uncloseai.com https://speech.ai.unturf.com https://hermes.ai.unturf.com; img-src 'self' data: https:; font-src 'self' data: https://uncloseai.com; media-src 'self' blob: data:; manifest-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://uncloseai.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://huggingface.co; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://uncloseai.com; connect-src 'self' https://uncloseai.com https://speech.ai.unturf.com https://hermes.ai.unturf.com https://huggingface.co https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://uncloseai.com; media-src 'self' blob: data:; manifest-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'">
     <style>
         :root {
             --bg-1: #f5f7fa;
@@ -305,6 +305,7 @@
                 <button class="btn ghost" id="cfg-import-btn">📥 导入 JSON</button>
                 <input type="file" id="cfg-import-file" accept="application/json" style="display:none;">
                 <button class="btn ghost" id="cfg-reset">↺ 恢复默认</button>
+                <button class="btn ghost" id="cfg-eng15-check" title="探测本地中文引擎（WASM/依赖）是否可用">🔧 引擎1.5 自检</button>
             </div>
             <div id="cfg-status" role="status" aria-live="polite" style="color:var(--muted);"></div>
         </div>
@@ -510,6 +511,8 @@
         let synthZhVoice = null;           // 选定的中文语音
         let zhWasmTts = null;              // 引擎1.5 实例（懒加载，缓存复用）
         let zhWasmBusy = false;            // 防止并发启动（模型加载是重操作）
+        let zhWasmAvailable = null;        // 引擎1.5 依赖可达性缓存（null=未探测 true=可用 false=不可用）
+        let zhWasmFailReason = '';         // 首次失败原因（CSP/网络/vendor），透出给用户
 
         // 浏览器自动播放策略：首次用户手势内播放一段静音音频解锁后续 play()
         // 叠加 Web Audio API 预热，覆盖 iOS Safari 对 data: URI 的严苛场景
@@ -675,57 +678,124 @@
         // 模型：HF onnx-community/Kokoro-82M-v1.0-ONNX q8f16(82MB)，首次下载后浏览器缓存。
         // 质量预期管理：官方自评 C/D（详见 tts-zh.js VOICES_ZH），徽章文案禁止用"高质量"。
         // 若 pinyin-pro/kokoro-js 任一不可用 → 抛错由 synthChain 捕获继续降级引擎2/3（不阻断主链路）。
-        const KOKORO_ESM = 'https://esm.sh/kokoro-js@1.2.1';
+        const KOKORO_ESM = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
+        const KOKORO_PINYIN_ESM = 'https://cdn.jsdelivr.net/npm/pinyin-pro@3.28.2/+esm';
         const KOKORO_MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
         const KOKORO_VOICE = 'zf_xiaobei';
+        // pinyin-pro 浏览器兜底路径：同域名 vendor（与 tts-zh.js 约定一致）
+        const KOKORO_PINYIN_FALLBACK = './engines/pinyin-pro.mjs';
+
+        // 依赖可达性预检（A2 修复）：前置探测两个动态 import + WASM 支持，
+        // 失败时跳过引擎1.5 并把原因透出（C1）。结果缓存，避免每次朗读都重试。
+        async function canUseZhWasm() {
+            if (zhWasmAvailable !== null) return zhWasmAvailable;
+            try {
+                if (typeof WebAssembly === 'undefined' || typeof WebAssembly.compile !== 'function') {
+                    zhWasmFailReason = '浏览器不支持 WebAssembly';
+                    zhWasmAvailable = false; return false;
+                }
+                await Promise.all([
+                    import(/* @vite-ignore */ KOKORO_ESM).catch(() => { throw new Error('kokoro-js 动态加载失败（CSP 或网络）'); }),
+                    import(/* @vite-ignore */ KOKORO_PINYIN_ESM).catch(() => import(/* @vite-ignore */ KOKORO_PINYIN_FALLBACK).catch(() => { throw new Error('pinyin-pro 动态加载失败（CSP 或网络，且无本地 vendor）'); })),
+                ]);
+                zhWasmAvailable = true;
+                return true;
+            } catch (e) {
+                zhWasmFailReason = e && e.message ? e.message : '本地中文引擎依赖不可用';
+                zhWasmAvailable = false;
+                logError(zhWasmFailReason, 'engine15-probe');
+                return false;
+            }
+        }
+        // 用户手动重试：重置可达性缓存（设置面板「引擎1.5 自检」用）
+        function resetZhWasmAvailability() { zhWasmAvailable = null; zhWasmFailReason = ''; }
 
         async function loadZhWasmEngine() {
             if (zhWasmTts) return zhWasmTts;
+            if (!(await canUseZhWasm())) throw new Error(zhWasmFailReason || '本地中文引擎依赖不可用');
             // 并行加载：kokoro-js 实例 + pinyin-pro（音素器同源调用）
             const [w, pinyinMod] = await Promise.all([
-                import(/* @vite-ignore */ KOKORO_ESM).catch(() => import(/* @vite-ignore */ './engines/kokoro-js.mjs')), // V11 兜底 vendor
-                import(/* @vite-ignore */ 'https://esm.sh/pinyin-pro@3.28.2').catch(() => import(/* @vite-ignore */ './engines/pinyin-pro.mjs')),
+                import(/* @vite-ignore */ KOKORO_ESM).catch(() => { throw new Error('kokoro-js 加载失败'); }),
+                import(/* @vite-ignore */ KOKORO_PINYIN_ESM).catch(() => import(/* @vite-ignore */ KOKORO_PINYIN_FALLBACK)),
             ]);
             const KokoroTts = w.KokoroTTS;
             if (!KokoroTts || !pinyinMod || typeof pinyinMod.pinyin !== 'function') throw new Error('本地中文引擎依赖加载失败');
-            // phonemizeChinese 逻辑内联（与 tts-zh.js 同步；GET 与本文件同步）
-            // 用本模块内 phonemizeZh（下方定义）替换 kokoro-js 默认英文音素器
+            // 中文音素化：外置 phonemizeZh 直接把汉字 → Kokoro IPA；英文片段保持原样（本引擎不做二次合成）。
+            // generate 阶段用 generate_from_ids 绕过英文 voice 白名单与二次 espeak（见 generateZhWithVoice 注释）。
             const tts = await KokoroTts.from_pretrained(KOKORO_MODEL, { dtype: 'q8f16', device: 'wasm' });
             zhWasmTts = { tts, pinyin: pinyinMod.pinyin };
             return zhWasmTts;
+        }
+
+        // 中文 voice 适配层（CRITIC 第二轮 P1 修复）：
+        // kokoro-js@1.2.1 的 generate() 会对 voice 做 _validate_voice 校验，白名单只有 28 个英文 voice，
+        // zf_xiaobei 必被拒绝；且 generate() 会对输入再走英文 espeak 音素化，破坏我们已产出的中文 IPA。
+        // 正确路径：直接用 tokenizer 得到 input_ids → generate_from_ids（后者不校验 voice，
+        // 只按名从 HF 拉 voices/<voice>.bin —— zf_xiaobei.bin 真实存在，此前已核验，见 优化计划/*-v4.2升级版）。
+        async function generateZhWithVoice(tts, ipa, speed) {
+            if (typeof tts.generate_from_ids !== 'function' || !tts.tokenizer) {
+                throw new Error('kokoro-js 缺少 generate_from_ids/tokenizer，无法适配中文 voice');
+            }
+            const { input_ids } = tts.tokenizer(ipa, { truncation: true });
+            return await tts.generate_from_ids(input_ids, { voice: KOKORO_VOICE, speed });
         }
 
         async function synthWithZhWasm(text, speed, myId) {
             if (zhWasmBusy) { setStatus('🀄 本地中文引擎仍在上次加载中，稍候再试。'); return 'error'; }
             zhWasmBusy = true;
             try {
+                if (!(await canUseZhWasm())) {
+                    setStatus('🀄 本地中文引擎不可用：' + (zhWasmFailReason || '依赖加载失败') + '，已切换其他引擎。');
+                    return 'error';
+                }
                 const { tts, pinyin } = await loadZhWasmEngine();
                 if (isStopped || myId !== speakRequestId) return 'stopped';
-                const ipa = await phonemizeZh(text, pinyin, (eng) => tts.generate(eng).catch(() => '')); // 英文 token 透传（若失败置空）
-                if (isStopped || myId !== speakRequestId) return 'stopped';
-                // Kokoro generate 直接返回 RawAudio（Float32，24000Hz）→ 转 WAV blob → playBlob 播放
-                const audio = await tts.generate(ipa, { voice: KOKORO_VOICE, speed: Math.max(0.5, Math.min(2, speed || 1)) });
-                if (isStopped || myId !== speakRequestId) return 'stopped';
-                const samples = audio && audio.audio ? audio.audio : (audio && audio.toRaw ? audio.toRaw() : null);
-                if (!samples || !samples.length) throw new Error('本地中文引擎无音频产出');
-                const sr = (audio && audio.sample_rate) || 24000;
-                const blob = wavFromSamples(samples, sr);
-                audioBlobs.push(blob);
-                setStatus('🀄 本地中文引擎朗读中…');
-                const r = await playBlob(blob);
-                return r === 'ended' ? 'ok' : (r === 'stopped' ? 'stopped' : 'error');
+                // 分块合成（B5）：不整段拼接，逐 chunk phonemize+generate，规避上下文窗口截断
+                const chunks = splitIntoChunks(text);
+                const wavs = [];
+                for (let i = 0; i < chunks.length; i++) {
+                    if (isStopped || myId !== speakRequestId) return 'stopped';
+                    const ipa = await phonemizeZh(chunks[i], pinyin, () => ''); // 英文片段在本引擎不做二次合成（D2）
+                    if (!ipa) continue;
+                    // 走适配层：tokenizer→input_ids→generate_from_ids（绕过英文 voice 白名单 + 避免二次 espeak 音素化）
+                    const audio = await generateZhWithVoice(tts, ipa, Math.max(0.5, Math.min(2, speed || 1)));
+                    if (isStopped || myId !== speakRequestId) return 'stopped';
+                    const samples = audio && audio.audio ? audio.audio : (audio && audio.toRaw ? audio.toRaw() : null);
+                    if (!samples || !samples.length) throw new Error('本地中文引擎无音频产出');
+                    const sr = (audio && audio.sample_rate) || 24000;
+                    wavs.push(wavFromSamples(samples, sr));
+                    setStatus(`🀄 本地中文引擎合成中…（第 ${i + 1}/${chunks.length} 段）`);
+                }
+                if (wavs.length === 0) throw new Error('无有效音频块');
+                // 按序播放（audioBlobs 用于下载；停止语义由 playBlob 的 currentPlaybackResolve 负责）
+                const total = wavs.length;
+                for (let i = 0; i < total; i++) {
+                    if (isStopped || myId !== speakRequestId) return 'stopped';
+                    audioBlobs.push(wavs[i]);
+                    setStatus(`🀄 本地中文引擎朗读中…（第 ${i + 1}/${total} 段）`);
+                    const r = await playBlob(wavs[i]);
+                    if (r === 'stopped') return 'stopped';
+                    if (r !== 'ended') return 'error';
+                }
+                return 'ok';
             } finally {
                 zhWasmBusy = false;
             }
         }
 
-        // Float32 → 16bit PCM WAV blob（与 verify-kokoro.html 同逻辑，引擎1.5 下载路径）
+        // Float32 → 16bit PCM WAV blob（B2 修复：显式分支，禁止把任意 TypedArray 当 Float32 错读）
         function wavFromSamples(samples, sampleRate) {
             let f32;
-            if (samples instanceof Float32Array) f32 = samples;
-            else if (ArrayBuffer.isView(samples)) f32 = new Float32Array(samples.buffer, samples.byteOffset, samples.byteLength / 4);
-            else if (Array.isArray(samples)) f32 = Float32Array.from(samples);
-            else throw new Error('无法识别的音频类型');
+            if (samples instanceof Float32Array) {
+                f32 = samples;
+            } else if (samples instanceof Int16Array) {
+                f32 = new Float32Array(samples.length);
+                for (let i = 0; i < samples.length; i++) f32[i] = samples[i] / 32768;
+            } else if (Array.isArray(samples)) {
+                f32 = Float32Array.from(samples);
+            } else {
+                throw new Error('无法识别的音频类型：' + (samples && samples.constructor ? samples.constructor.name : typeof samples));
+            }
             const numChannels = 1, bytesPerSample = 2, blockAlign = numChannels * bytesPerSample, byteRate = sampleRate * blockAlign;
             const dataSize = f32.length * bytesPerSample;
             const buffer = new ArrayBuffer(44 + dataSize); const dv = new DataView(buffer);
@@ -862,8 +932,9 @@
                 }
             }
             // 引擎1.5：本地 WASM 中文（P0-1-B，cfg 开关 + WebAssembly 可用时）
+            // C2 修复：触发判定改为「含 CJK 统一表意文字」，避免前导空格/全角/emoji 误触发
             if (isStopped || myId !== speakRequestId) return 'stopped';
-            if (cfg.engines_enabled.engine15 !== false && typeof WebAssembly !== 'undefined' && /^[^\x00-\x7f]/.test(text) /* 含非 ASCII → 中文文本才值得走本地中文引擎 */) {
+            if (cfg.engines_enabled.engine15 !== false && typeof WebAssembly !== 'undefined' && /\p{Script=Han}/u.test(text)) {
                 try {
                     currentEngine = 15;
                     progressEl.style.display = 'block';
@@ -871,12 +942,13 @@
                     progressEl.value = 0;
                     audioBlobs = [];
                     setStatus('🀄 在线不可用，试本地中文引擎…');
-                    const r = await synthWithZhWasm(chunks.join(' '), speed, myId);
+                    const r = await synthWithZhWasm(text, speed, myId);   // 传原文，分块在引擎内处理（B5）
                     if (r === 'ok') return 'ok';
                     if (r === 'stopped') return 'stopped';
-                    // r === 'error' 继续降级（模型下载失败/фонемizer 不可用等）
+                    // r === 'error' 继续降级（模型下载失败/依赖不可用等，原因已透出在 synthWithZhWasm 状态栏）
                 } catch (e) {
                     logError(e.message, 'synthChain-engine15');
+                    setStatus('🀄 本地中文引擎异常：' + (e.message || e) + '，已切换其他引擎。');
                 }
             }
             // 引擎2：浏览器内置
@@ -1457,6 +1529,7 @@
         const cfgImportBtn = document.getElementById('cfg-import-btn');
         const cfgImportFile = document.getElementById('cfg-import-file');
         const cfgReset = document.getElementById('cfg-reset');
+        const cfgEng15Check = document.getElementById('cfg-eng15-check');
         const cfgStatus = document.getElementById('cfg-status');
 
         function fillCfgForm() {
@@ -1531,6 +1604,17 @@
             probeTtsEndpoint().then(up => updateEndpointBadge(up));
             initVoices();
         });
+        // 引擎1.5 自检（A2/C1）：重置可达性缓存并探测，失败原因透出到状态栏
+        if (cfgEng15Check) {
+            cfgEng15Check.addEventListener('click', async () => {
+                resetZhWasmAvailability();
+                cfgStatus.textContent = '🔧 正在探测本地中文引擎依赖（WASM + kokoro-js + pinyin-pro）…';
+                const ok = await canUseZhWasm();
+                cfgStatus.textContent = ok
+                    ? '✅ 本地中文引擎依赖可用（首次合成时才会下载 82MB 模型）。'
+                    : '❌ 本地中文引擎不可用：' + (zhWasmFailReason || '未知原因') + '。朗读将走引擎2/3。';
+            });
+        }
 
         // 键盘快捷键（E4）：Ctrl+Enter 朗读 / Esc 停止 / 空格 暂停-恢复
         // P2-2: 扩展 Ctrl+D 下载 / Ctrl+H 历史 / Ctrl+, 主题

@@ -2,7 +2,7 @@
 
 纯前端单文件静态页，接入 [uncloseai.js](https://uncloseai.com)（公共领域），提供 **AI 对话 + 文本转语音 + 整页朗读** 三条闭环。无需后端、无需注册、无需 API Key。
 
-**当前版本：v4.1**（2026-09-07 P0-3 配置中心 + P1-1 SW 跨域缓存 + 全栈迭代路线图）
+**当前版本：v4.2**（2026-09-07 引擎1.5 本地中文 WASM + 依赖可达性自检 + 全量回归 57/57）
 
 ## 快速开始
 
@@ -30,8 +30,18 @@ npm run serve          # 监听 8765
 | 闭环 | 入口 | 实现 | v4.1 状态 |
 |------|------|------|---------|
 | ① AI 对话 | 页面中部聊天框 | uncloseai.js widget。回复可点 🔊 朗读 | 模型名自动注入（30分钟缓存）+ 推理过程 7 规则结构化清洗 |
-| ② 任意文本转语音 | "🔊 朗读这段话"按钮 | **三级降级链**：在线 F5-TTS → 浏览器 SpeechSynthesis → 文本兜底；pLimit 3 并发 + 429 退避 | ✅ 端点宕机仍出声 + 并发合成 |
-| ③ 整页朗读 | "📖 朗读整页内容"按钮 | 提取正文 → 7 规则清洗 → 走三级降级链 | ✅ 不混读 UI，端点宕机走离线 |
+| ② 任意文本转语音 | "🔊 朗读这段话"按钮 | **四级降级链**：在线 F5-TTS → 引擎1.5 本地中文 WASM(Kokoro) → 浏览器 SpeechSynthesis → 文本兜底；pLimit 3 并发 + 429 退避 | ✅ 端点宕机仍出声 + 并发合成 |
+| ③ 整页朗读 | "📖 朗读整页内容"按钮 | 提取正文 → 7 规则清洗 → 走四级降级链 | ✅ 不混读 UI，端点宕机走离线 |
+
+## v4.2 核心升级（相对 v4.1）
+
+- **P0-1-B 引擎1.5 本地中文 WASM**：在引擎1（在线）与引擎2（浏览器）之间插入 Kokoro 82M ONNX + 中文音素器（移植 kokoro PR #352 `phonemize-zh.js` + `pinyin-pro`）。断网 + 系统无中文包时可本地合成。`⚙️ 引擎1.5 自检`按钮可探依赖可用性并透出失败原因。真机出声待测（质量官方自评 C/D）。
+- **依赖可达性预检 + 失败透出**：`canUseZhWasm()` 前置探测（WASM + kokoro-js + pinyin-pro），失败跳过引擎1.5 并在状态栏明示原因，不再静默降级。
+- **CSP 强化对齐**：script-src 增加 `cdn.jsdelivr.net` / `huggingface.co` 与 `'unsafe-eval'`（WASM 必需）；connect-src 增加 `huggingface.co` / `cdn.jsdelivr.net`。依赖全部走 CSP 白名单域名。
+- **本地 vendor 兜底**：`engines/` 收录 `pinyin-pro.mjs` + `kokoro-js.mjs` 静态副本，CDN 不可达时同源兜底。
+- **触发判定修复**：引擎1.5 仅对含 CJK 汉字文本触发（`\p{Script=Han}`），修复前"首字符非 ASCII"对前导空格/全角/emoji 的误判。
+- **分块合成**：引擎1.5 按 `splitIntoChunks` 逐块合成拼接，规避 5000 字无标点文本超上下文窗口截断。
+- **WAV 转换健壮化**：显式 Float32/Int16/Array 分支，Int16 先 /32768 转 float，禁止按字节/4 错读任意 TypedArray。
 
 ## v4.1 核心升级（相对 v3）
 
@@ -106,29 +116,32 @@ npm run serve          # 监听 8765
 - TTS 端点：`speech.ai.unturf.com/v1`（OpenAI 兼容，F5-TTS，42 语音，支持 speed）— 用户可在 ⚙️ 配置自带端点
 - 聊天端点：`hermes.ai.unturf.com/v1`（Qwen3.6-27B，已验证 localhost CORS 放行）
 - 离线引擎：浏览器原生 Web Speech API SpeechSynthesis（零依赖，端点宕机时降级）
+- **引擎1.5 本地中文 WASM（v4.2 新增）**：Kokoro 82M ONNX（`onnx-community/Kokoro-82M-v1.0-ONNX` q8f16 82MB）+ 中文音素器（移植 kokoro PR #352 `phonemize-zh.js` + `pinyin-pro`），引擎 1→1.5→2→3 降级链；依赖经 `cdn.jsdelivr.net`（CSP 白名单）加载，本地 `engines/` vendor 兜底；**真机出声待测**
 - Service Worker：`sw.js`（同源 NetworkFirst + 跨域 uncloseai.com SWR 7 天 TTL）
 
-## 已知限制（v4.1 诚实披露）
+## 已知限制（v4.2 诚实披露）
 
-1. **TTS 端点 2026-09-06 持续 502**：可能是临时维护或长期停摆。v4.1 降级链保证此时仍有声可用（浏览器内置），但音色机械；用户可在 ⚙️ 配置自带端点恢复在线高质量。
-2. **WASM 引擎1.5（Kokoro）未落地**：断网 + Linux 无 zh 包时降级到文本兜底（无声）。v4.2 待真机测 Kokoro `zf_xiaobei` voice 后落地。
+1. **TTS 端点 2026-09-06 持续 502**：可能是临时维护或长期停摆。降级链保证此时仍有声可用（浏览器内置），但音色机械；用户可在 ⚙️ 配置自带端点恢复在线高质量。
+2. **引擎1.5 本地中文（Kokoro）代码已入，真机出声待测（含结构性前提）**：断网 + Linux 无 zh 包时可走引擎1.5（本地 82MB 模型，音素器已实现，`⚙️ 引擎1.5 自检`可探依赖可用性）；中文合成走 `generate_from_ids` 适配层（绕过 kokoro-js@1.2.1 英文 voice 白名单，`zf_xiaobei.bin` 已核验存在于 HF）。**真机（含 iOS Safari WASM 内存）尚未验证**；若真机不可用则回落到引擎2/3。语音质量官方自评 C/D（非「高质量」）。
 3. **浏览器 SpeechSynthesis 中文语音因平台而异**：Windows 有 Huihui/Yaoyao（质量尚可）；Linux 多数发行版无中文语音包，此时引擎2也会失败 → 走引擎3 文本兜底。
 4. **iOS Safari 未真机测**：autoplay 与 SpeechSynthesis + WASM 内存限制待真机验证。
 5. **库请求体无法干预**：库自带的 per-message 🔊 朗读按钮走库内部 speakText，前端无法注入 enable_thinking 参数。闭环①库内朗读可能仍带思考过程，闭环③整页朗读已前端 7 规则过滤。
-6. **CSP 含 'unsafe-inline'**：因 uncloseai.js 需内联配置脚本。script-src 已白名单限制。v4.2 P3-1 计划用 hash 强化。
+6. **CSP 含 'unsafe-inline' 与 'unsafe-eval'**：`unsafe-inline` 因 uncloseai.js 需内联配置脚本；`unsafe-eval` 为 WASM 引擎1.5 必需。script-src 已白名单限制（仅 uncloseai.com / cdn.jsdelivr.net / cdnjs.cloudflare.com / huggingface.co）。v4.3 P3-1 计划用 hash + 移除 eval（引擎1.5 用编译过的 wasm 时）。
 7. **字级高亮未落地**：v4.1 朗读时无视觉跟随，v4.2 P1-2 计划落地。
 
-## 测试基线（v4.1 真实复跑，2026-09-07）
+## 测试基线（v4.2 真实复跑，2026-09-07）
 
 | 套件 | 文件 | 项数 | 真实通过 |
 |------|------|------|---------|
 | E2E 主套件 | `e2e-test.cjs` | T1-T17 = 17 项 | ✅ 17/17 PASS |
 | E2E SW 跨域 | `e2e-test-sw.cjs` | T_SW_1-3 = 3 项 | ✅ 3/3 PASS |
 | E2E 配置中心 | `e2e-test-cfg.cjs` | T_CFG_1-5 = 5 项 | ✅ 5/5 PASS |
+| E2E 引擎1.5 | `e2e-test-zh.cjs` | T_ZH_1-4 = 4 项 | ✅ 4/4 PASS |
 | 单元 推理清洗 | `unit-test.cjs` | U_CLEAN 7 项 + 22 样本 | ✅ 7/7 PASS |
 | 单元 并发池 | `unit-test-pool.cjs` | U_POOL 4 项 | ✅ 4/4 PASS |
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 项 | ✅ 8/8 PASS |
-| **总计** | — | **44 项** | **✅ 44/44 PASS** |
+| 单元 中文引擎 | `unit-test-zh.cjs` | U_ZH 9 项（音素器+voice 表+WAV+CJK 判定）| ✅ 9/9 PASS |
+| **总计** | — | **57 项** | **✅ 57/57 PASS** |
 
 复跑命令：
 
@@ -139,7 +152,8 @@ npm run serve &            # 后台启动静态服务器
 node e2e-test.cjs          # 17 项
 node e2e-test-sw.cjs       # 3 项
 node e2e-test-cfg.cjs      # 5 项
-node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs  # 19 项
+node e2e-test-zh.cjs       # 4 项
+node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs  # 28 项
 ```
 
 ## v4.1 关键修复（P0/P1）
