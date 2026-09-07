@@ -1947,6 +1947,35 @@
             const { executions = 0, success_rate = 0, distinct_queries = 0, days_since_last = 999 } = stats;
             return executions >= 5 && success_rate >= 0.8 && distinct_queries >= 2 && days_since_last <= 30;
         }
+        // B2：从 episodic records 按主题聚合操作统计，返回通过四维门控的结晶候选
+        function memoryCrystalSuggestions(m) {
+            if (!m || !m.records || !m.records.length) return [];
+            const byTopic = new Map(); // topic -> {executions, successes, contents:Set, lastTs}
+            for (const r of m.records) {
+                const topic = (r.topics && r.topics[0]) || r.type || 'oper';
+                if (!byTopic.has(topic)) byTopic.set(topic, { executions: 0, successes: 0, contents: new Set(), lastTs: 0 });
+                const g = byTopic.get(topic);
+                g.executions++;
+                if (r.type === 'skill') continue; // 已结晶的 skill 记录不参与再次建议
+                g.successes++;
+                if (r.content) g.contents.add(String(r.content).slice(0, 30));
+                if (r.created_at > g.lastTs) g.lastTs = r.created_at;
+            }
+            const out = [];
+            const now = Date.now();
+            for (const [topic, g] of byTopic) {
+                if (g.executions < 5) continue;
+                const stats = {
+                    executions: g.executions,
+                    success_rate: g.successes / Math.max(1, g.executions),
+                    distinct_queries: g.contents.size,
+                    days_since_last: Math.max(0, Math.floor((now - g.lastTs) / 86400000))
+                };
+                if (!memoryCrystalEligible(stats)) continue;
+                out.push({ name: topic, description: '重复操作：' + g.executions + ' 次，成功率 ' + Math.round(stats.success_rate * 100) + '%，' + g.contents.size + ' 种问法', ...stats });
+            }
+            return out.sort((a, b) => b.executions - a.executions);
+        }
         function memoryRecord(kind, detail) {
             // 每次朗读/聊天记录一条 episodic 记忆（来源；供日后结晶/检索）
             const m = memoryLoad();
@@ -1984,16 +2013,61 @@
                 }
                 body.appendChild(list);
             } else if (tab === 'skills') {
-                if (!m.skills.length) { body.innerHTML = '<div style="color:var(--muted);font-size:.85rem;">尚无结晶技能。重复 5 次以上相同操作、成功率 ≥80%、多种问法后，这里会出现「建议结晶」。</div>'; return; }
-                const list = document.createElement('div');
-                list.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
-                for (const s of m.skills) {
-                    const d = document.createElement('div');
-                    d.style.cssText = 'font-size:.8rem;padding:5px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 12%,transparent);';
-                    d.textContent = '✨ ' + s.name + ' — ' + String(s.description || '').slice(0, 60);
-                    list.appendChild(d);
+                // B2：技能结晶 UI 化 — 建议区（符合四维门控的候选）+ 已结晶技能列表
+                const m2 = memoryLoad();
+                const suggestions = memoryCrystalSuggestions(m2);
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+                if (suggestions.length) {
+                    const sugTitle = document.createElement('div');
+                    sugTitle.style.cssText = 'font-size:.85rem;font-weight:700;color:var(--accent);';
+                    sugTitle.textContent = '💡 建议结晶（重复操作已达阈值）';
+                    wrap.appendChild(sugTitle);
+                    for (const sug of suggestions) {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:.8rem;';
+                        const info = document.createElement('span');
+                        info.style.cssText = 'flex:1 1 auto;';
+                        info.textContent = sug.name + '（' + sug.executions + ' 次 · 成功率 ' + Math.round(sug.success_rate * 100) + '%）';
+                        const okBtn = document.createElement('button');
+                        okBtn.className = 'btn';
+                        okBtn.style.cssText = 'font-size:.72rem;padding:3px 10px;';
+                        okBtn.textContent = '✅ 结晶';
+                        okBtn.addEventListener('click', () => {
+                            const m3 = memoryLoad();
+                            if (!m3.skills) m3.skills = [];
+                            m3.skills.push({ id: 's' + Date.now(), name: sug.name, description: sug.description || sug.name, created_at: Date.now(), executions: sug.executions });
+                            // 结晶后移出建议候选（记录一条已结晶 episodic）
+                            m3.records = m3.records || [];
+                            m3.records.unshift({ id: 'r' + Date.now() + 'c', type: 'skill', content: '已结晶技能：' + sug.name, priority: 70, topics: [sug.name], source: 'crystal', session_id: 's1', created_at: Date.now(), version: 1 });
+                            memorySave(m3);
+                            pushTimeline('skill', '已结晶技能：' + sug.name, true, 'memory');
+                            memoryRender('skills');
+                        });
+                        row.appendChild(info); row.appendChild(okBtn);
+                        wrap.appendChild(row);
+                    }
                 }
-                body.appendChild(list);
+                if (!m2.skills || !m2.skills.length) {
+                    if (!suggestions.length) {
+                        const empty = document.createElement('div');
+                        empty.style.cssText = 'color:var(--muted);font-size:.85rem;';
+                        empty.textContent = '尚无结晶技能。重复 5 次以上相同操作、成功率 ≥80%、多种问法后，这里会出现「建议结晶」。';
+                        wrap.appendChild(empty);
+                    }
+                } else {
+                    const listTitle = document.createElement('div');
+                    listTitle.style.cssText = 'font-size:.85rem;font-weight:700;';
+                    listTitle.textContent = '✨ 已结晶技能';
+                    wrap.appendChild(listTitle);
+                    for (const s of m2.skills) {
+                        const d = document.createElement('div');
+                        d.style.cssText = 'font-size:.8rem;padding:5px 8px;border-radius:6px;background:color-mix(in srgb,var(--accent) 12%,transparent);';
+                        d.textContent = '✨ ' + s.name + ' — ' + String(s.description || '').slice(0, 60);
+                        wrap.appendChild(d);
+                    }
+                }
+                body.appendChild(wrap);
             }
         }
         function wireMemoryUI() {
