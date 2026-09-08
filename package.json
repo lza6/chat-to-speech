@@ -6,9 +6,10 @@
   "scripts": {
     "test:e2e": "node e2e-test.cjs",
     "test:e2e:zh": "node e2e-test-zh.cjs",
+    "test:e2e:wizard": "node e2e-test-wizard.cjs",
     "test:unit": "node unit-test.cjs",
-    "test:unit:all": "node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs",
-    "test:all": "node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs",
+    "test:unit:all": "node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs",
+    "test:all": "node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs",
     "serve": "node -e \"require('http').createServer((q,s)=>{const f=require('path').join('.',decodeURIComponent(q.url).split('?')[0]);require('fs').readFile(f,(e,d)=>{if(e){s.writeHead(404);s.end('404')}else{const m=require('path').extname(f);s.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'}[m]||'application/octet-stream'});s.end(d)}})}).listen(8765,()=>console.log('http://localhost:8765/demo.html'))\""
   },
   "devDependencies": {

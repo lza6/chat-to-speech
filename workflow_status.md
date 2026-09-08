@@ -401,3 +401,40 @@ $ node e2e-test-sw.cjs
 ### 9.6 下一步（v4.3 参考序）
 
 - 真机出声复验（用户侧）→ 通过则引擎1.5 完整闭环；P1-2 字级高亮 / P2-1 听写 / P2-2 可视化 / P3-1 CSP hash 收敛 / P3-2 Lighthouse / P4-1 axe-core。
+
+---
+
+## 10. v4.5 场景向导 B3/B4/B5 落地闭环（stage-wizard，2026-09-09）
+
+> 本节记录 Phase B 剩余批次（任务看板/PPT 大纲/电商文案）落地 + 单测/E2E/critique 闭环。
+
+### 10.1 落地内容
+
+| 批次 | 功能 | 证据位置 |
+|------|------|---------|
+| B3 | 任务看板状态机：五态看板（Backlog/Planning/Running/Review/Done）+ 取消列；新增→点击推进（`wzCanTransit` 合法流转门）→右键取消；数据落 localStorage `tts_wizard_v1` | `demo.html`（`wzNewTask/wzCanTransit/wzGroupByStatus/wzRenderBoard/wzSeedBoard/wzWireWizard`）；`unit-test-wizard.cjs` WZ_1/WZ_2 | 
+| B4 | PPT 大纲：空行分页输入→`wzParsePptSpec` 解析（标题+要点，页/要点钳位）→`wzDetectOverflow` 几何审计（中文宽度估算 + autofit 缩字 + 溢出标记）→分页预览 + 导出 `.md` | `demo.html`（同上 + `wzRenderPpt/wzExportPpt`）；`unit-test-wizard.cjs` WZ_3/WZ_4 |
+| B5 | 电商文案：商品卡（名/价格/人群/卖点）→`wzValidateCommodity` schema 校验→`wzEcomTemplate` 三段草稿（标题版/正文版/快发版）+ `wzCensor` 禁用词替换（最低价/全网最低/第一/绝对/100%→★）→一键复制 | `demo.html`（`wzEcomTemplate/wzCensor/wzRenderEcom`）；`unit-test-wizard.cjs` WZ_5/WZ_6 |
+
+### 10.2 测试（真实运行，stage-wizard）
+
+| 套件 | 命令 | 结果 |
+|------|------|------|
+| 单元 场景向导 | `node --test unit-test-wizard.cjs` | **6/6 PASS**（WZ_1-6：看板流转/取消/PPT 分页/几何审计/电商模板/商品卡 schema） |
+| E2E 场景向导 | `node e2e-test-wizard.cjs` | **6/6 PASS**（T_WZ_1-6：面板+三页签/看板推进/右键取消/PPT 审计/电商三段+禁用词/localStorage 持久化） |
+| 全量回归 | `node e2e-test.cjs` + sw + cfg + zh + wizard | **35/35 PASS**（17+3+5+4+6） |
+| 单元 ×7 | `node --test unit-test*.cjs` | **43/43 PASS**（U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6） |
+| 台账门禁 | `node verify-acceptance.cjs --strict` | **TOTAL 78 PASS**（E2E≥35 且 单元≥39），门槛已同步提高 |
+
+### 10.3 约束遵守
+
+- 纯前端无新增依赖（零 npm 新装）；`demo.html` 仍单文件；dist 已同步（`cp demo.html dist/index.html`，同一性校验通过）。
+- 时间线埋点（`pushTimeline('wizard', …)`）已接入场景向导（看板新增/推进/取消、PPT 导出、电商生成）。
+- E2E pageerror 零 fatal；三条连续复跑全绿（核心套件 3×17/17 无 flaky）。
+- 文档同步：README 版本 → v4.5 + 新增「v4.5 核心升级」节 + 测试基线 78 项 + 文件结构 + 已知限制补充；manifest.json 补 B3/B4/B5 特征卡。
+
+### 10.4 剩余待办（诚实披露）
+
+- C1：图片/视频场景扩展（复用 wizard 状态机 + 合成 chain）。
+- 引擎1.5 真机出声待测（前置外部受限）。
+- CI action @v5 升级（Node 24 已自动跑，不影响功能）。

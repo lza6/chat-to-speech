@@ -4,9 +4,13 @@ node_modules/
 .playwright-mcp/
 # 临时调试脚本不入库
 server.cjs
+.ci-check.js
 test-cases/*.tmp
 # 临时验证脚本（静态语法/夹具核验用，不入库）
 verify-*.cjs
 !verify-acceptance.cjs
 # 临时真机测验证页（不入库）
 verify-kokoro.html
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

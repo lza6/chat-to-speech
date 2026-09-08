@@ -5,8 +5,8 @@
 'use strict';
 const fs = require('fs');
 
-const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs'];
-const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs'];
+const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs'];
+const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs', 'unit-test-wizard.cjs'];
 
 function countPattern(src, re) { return (src.match(re) || []).length; }
 
@@ -28,12 +28,12 @@ function main() {
 
   // 文档声称（宽松：只读现有文档，不因文档未更新而 fail；strict 模式强制）
   let docClaims = null;
-  for (const f of ['README.md', 'workflow_status.md']) {
-    if (!fs.existsSync(f)) continue;
-    const txt = fs.readFileSync(f, 'utf8');
-    const m = txt.match(/(\d+)\s*\/\s*(\d+)/);
-    if (m) docClaims = { file: f, n: parseInt(m[1], 10), total: parseInt(m[2], 10) };
-  }
+  const docTxt = ['README.md', 'workflow_status.md'].map(f => { try { return fs.readFileSync(f, 'utf8'); } catch (_) { return ''; } }).join('\n');
+  // 优先匹配「总计」表行「✅ 78/78 PASS」（当前版本全量声称），排除各子套件 17/17 等历史声称
+  let m = docTxt.match(/\*\*总计\*\*[^\n]*✅\s*(\d+)\s*\/\s*(\d+)\s*PASS/);
+  if (!m) m = docTxt.match(/全量回归\s*(\d+)\s+PASS/);
+  if (!m) m = docTxt.match(/(\d+)\s*\/\s*(\d+)\s*PASS/);
+  if (m) docClaims = { file: 'README/workflow_status', claimed: parseInt(m[1], 10), total: parseInt((m[2] || '0'), 10) };
 
   // 台账落盘（追加，供 audit）
   fs.mkdirSync('evidence', { recursive: true });
@@ -43,17 +43,17 @@ function main() {
   lines.push(`E2E: ${JSON.stringify(e2eByFile)} = ${e2eTotal}`);
   lines.push(`UNIT: ${unitTotal}`);
   lines.push(`LEDGER: evidence/acceptance-ledger.ndjson`);
-  if (docClaims) lines.push(`DOC: ${docClaims.file} 声称 ${docClaims.n}/${docClaims.total}`);
+  if (docClaims) lines.push(`DOC: ${docClaims.file} 声称 ${docClaims.claimed}`);
   const total = e2eTotal + unitTotal;
-  const pass = e2eTotal >= 29 && unitTotal >= 33;
-  lines.push(`TOTAL: ${total} · 门槛(E2E≥29 且 单元≥33) ${pass ? 'PASS' : 'FAIL'}`);
-  // strict 语义修正：旧逻辑对比 62 总数恒 fail。改为对比文档内部声称与实测（E2E/UNIT 任一项对齐即认可），不一致打 WARN。
-if (strict && docClaims) {
-  const claimed = docClaims.n;
-  const okClaim = claimed === e2eTotal || claimed === unitTotal || claimed === total;
-  if (!okClaim) { console.warn('⚠️ 文档声称 ' + claimed + ' 与实测 ' + e2eTotal + '/' + unitTotal + ' 不一致（文档未同步，需更新 README/workflow_status）'); }
-  else console.log('STRICT: 文档声称与实测一致 (' + claimed + ')');
-}
+  const pass = e2eTotal >= 35 && unitTotal >= 39;
+  lines.push(`TOTAL: ${total} · 门槛(E2E≥35 且 单元≥39) ${pass ? 'PASS' : 'FAIL'}`);
+  // strict 语义：对比文档当前版本声称与实测总项数（README/workflow_status 以「78 PASS」为准）
+  if (strict && docClaims) {
+    const claimed = docClaims.claimed;
+    const okClaim = claimed === total || claimed === e2eTotal || claimed === unitTotal;
+    if (!okClaim) { console.warn(`⚠️ 文档声称 ${claimed} 与实测 ${total}（E2E ${e2eTotal}/单元 ${unitTotal}）不一致（文档未同步，需更新 README/workflow_status）`); }
+    else console.log('STRICT: 文档声称与实测一致 (' + claimed + ')');
+  }
   console.log(lines.join('\n'));
   process.exit(pass ? 0 : 1);
 }

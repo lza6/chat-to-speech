@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updatedAt": "2026-09-08",
+  "updatedAt": "2026-09-09",
   "features": [
     {
       "id": "A1",
@@ -20,9 +20,30 @@
       "id": "A3",
       "name": "验收卡台账门禁",
       "source": "verify-acceptance.cjs",
-      "expect": { "require_evidence": ["E2E ≥29", "UNIT ≥33", "evidence/acceptance-ledger.ndjson"] },
-      "verifiedBy": "node verify-acceptance.cjs → TOTAL 62 PASS + ledger ndjson"
+      "expect": { "require_evidence": ["E2E ≥35", "UNIT ≥39", "evidence/acceptance-ledger.ndjson"] },
+      "verifiedBy": "node verify-acceptance.cjs → TOTAL 78 PASS + ledger ndjson"
+    },
+    {
+      "id": "B3",
+      "name": "场景向导：任务看板状态机",
+      "source": "demo.html (wzNewTask/wzCanTransit/wzGroupByStatus/wzRenderBoard) + unit-test-wizard.cjs WZ_1/2",
+      "expect": { "require_evidence": ["WZ_TASK_FLOW", "tts_wizard_v1", "wz-board", "Backlog/Planning/Running/Review/Done"] },
+      "verifiedBy": "unit WZ_1/2 + E2E T_WZ_2/3/6"
+    },
+    {
+      "id": "B4",
+      "name": "场景向导：PPT 大纲→分页→几何审计",
+      "source": "demo.html (wzParsePptSpec/wzDetectOverflow/wzExportPpt) + unit-test-wizard.cjs WZ_3/4",
+      "expect": { "require_evidence": ["wz-ppt-gen", "wzFitFontSize autofit", "溢出标记", "导出 Markdown"] },
+      "verifiedBy": "unit WZ_3/4 + E2E T_WZ_4"
+    },
+    {
+      "id": "B5",
+      "name": "场景向导：电商文案三段草稿 + 禁用词",
+      "source": "demo.html (wzValidateCommodity/wzEcomTemplate/wzCensor) + unit-test-wizard.cjs WZ_5/6",
+      "expect": { "require_evidence": ["wz-ecom-gen", "标题版/正文版/快发版", "★ 禁用词替换"] },
+      "verifiedBy": "unit WZ_5/6 + E2E T_WZ_5"
     }
   ],
-  "notes": "本轮 Phase B：A1+A2+A3 批次已落地并全量回归 29 E2E + 33 单元全绿。README/workflow_status 文档更新待下一步同步。"
+  "notes": "Phase B：A1+A2+A3+B1+B2 此前已落地；本轮新增 B3+B4+B5 场景向导（任务看板/PPT/电商）+ 全套回归 78 项全绿（35 E2E + 43 单元）。README/workflow_status/变更报告 v6 待同步。"
 }

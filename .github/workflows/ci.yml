@@ -90,7 +90,7 @@ jobs:
           node -e 'const fs=require("fs");const h=fs.readFileSync("demo.html","utf8");const s=h.match(/<script type="module">([\s\S]*?)<\/script>/i)||h.match(/<script>([\s\S]*?)<\/script>/i);if(!s)process.exit(1);fs.writeFileSync(".ci-check.js",s[1])'
           node --check .ci-check.js
           rm -f .ci-check.js
-          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs
+          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs
 
       - name: Acceptance ledger gate (verify-acceptance --strict)
         run: node verify-acceptance.cjs --strict
@@ -113,7 +113,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]   # E2E 分片并行（17+3+5+4 用例按文件分两片）
+        shard: [1, 2]   # E2E 分片并行（17+3+5+4+6 用例按文件分两片）
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -125,8 +125,8 @@ jobs:
       - name: Install Playwright browsers (cached)
         run: npx playwright install --with-deps chromium
 
-      - name: Unit tests (all 6 files)
-        run: node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs
+      - name: Unit tests (all 7 files)
+        run: node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs
 
       - name: Serve static site
         run: node -e "require('http').createServer((q,s)=>{const f=require('path').join('.',decodeURIComponent(q.url).split('?')[0]);require('fs').readFile(f,(e,d)=>{if(e){s.writeHead(404);s.end('404')}else{s.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'}[require('path').extname(f)]||'application/octet-stream'});s.end(d)}})}).listen(8765)" &
@@ -138,7 +138,7 @@ jobs:
           if [ "${{ matrix.shard }}" = "1" ]; then
             node e2e-test.cjs && node e2e-test-sw.cjs
           else
-            node e2e-test-cfg.cjs && node e2e-test-zh.cjs
+            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs
           fi
 
       - name: Acceptance ledger update
