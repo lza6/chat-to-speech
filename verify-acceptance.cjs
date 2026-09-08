@@ -6,7 +6,7 @@
 const fs = require('fs');
 
 const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs'];
-const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs'];
+const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs'];
 
 function countPattern(src, re) { return (src.match(re) || []).length; }
 

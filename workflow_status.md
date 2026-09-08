@@ -343,9 +343,9 @@ $ node e2e-test-sw.cjs
   - 单元 U_CLEAN：7/7 PASS
   - 单元 U_POOL：4/4 PASS
   - 单元 U_CFG：8/8 PASS
-  - **总计 44/44 PASS，零回归**
+  - **v4.1 基线 44/44 PASS，零回归（历史记录）**
 - **git commit**：`f681b97` 之后追加（待提交）
-- **下一步**：v4.2 P0-1 Kokoro WASM 引擎1.5 真机测 / P1-2 字级高亮 / P2-* 体验增强
+- **下一步**：v4.2 P0-1 Kokoro WASM 引擎1.5 真机测 / P1-2 字级高亮 / P2-* 体验增强（均已推进，见 §9/§10）
 
 ---
 
@@ -387,8 +387,8 @@ $ node e2e-test-sw.cjs
 | E2E SW | `node e2e-test-sw.cjs` | **3/3** |
 | E2E CFG | `node e2e-test-cfg.cjs` | **5/5** |
 | E2E 引擎1.5 | `node e2e-test-zh.cjs` | **4/4**（T_ZH_1 含引擎1.5 尝试痕迹断言 + T_ZH_4 自检按钮）|
-| 单元 ×4 | `node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs` | **28/28**（新增 U_ZH 9）|
-| **合计** | — | **57/57 PASS** |
+| 单元 ×6 | `node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs` | **37/37**（U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4）|
+| **合计** | — | **66/66 PASS** |
 
 ### 9.5 剩余真实风险（诚实披露）
 
