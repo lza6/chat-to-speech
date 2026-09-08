@@ -2126,7 +2126,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             const rawPages = String(text).split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
             const out = [];
             for (const block of rawPages) {
-                const lines = block.split('\n').map(s => s.trim()).filter(Boolean);
+                const lines = block.split(/[\n,，;；]+/).map(s => s.trim()).filter(Boolean);
                 const title = lines.shift() || '未命名页';
                 const bullets = lines.map(l => l.replace(/^\s*(?:[•·-]\s*|(?:[0-9]+[.)、]\s*))/, '').trim()).filter(l => l && !/^页[:：]\d+$/i.test(l));
                 if (title || bullets.length) out.push({ title: title.slice(0, 40), bullets: bullets.slice(0, 9), overflow: [] });
@@ -2274,7 +2274,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url;
-            a.download = 'ppt-' + title + '-' + new Date().toISOString().slice(0, 10) + '.md';
+            a.download = 'ppt-' + String(title).replace(/[\/:*?<>|\s]+/g, '-').slice(0, 40) + '-' + new Date().toISOString().slice(0, 10) + '.md';
             document.body.appendChild(a); a.click(); a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             pushTimeline('wizard', '导出 PPT 大纲文本', true, 'ppt');
@@ -2288,7 +2288,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             const name = document.getElementById('wz-ecom-name').value.trim();
             const price = document.getElementById('wz-ecom-price').value.trim();
             const aud = document.getElementById('wz-ecom-aud').value.split(',').map(s => s.trim()).filter(Boolean);
-            const sells = document.getElementById('wz-ecom-sells').value.split('\n').map(s => s.trim()).filter(Boolean);
+            const sells = document.getElementById('wz-ecom-sells').value.split(/[\n,，;；]+/).map(s => s.trim()).filter(Boolean);
             const spec = { name, sellpoints: sells, price, audience: aud };
             const v = wzValidateCommodity(spec);
             out.innerHTML = '';
@@ -2299,6 +2299,16 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 const tag = document.createElement('div'); tag.className = 'wz-draft-tag'; tag.textContent = d.tag; div.appendChild(tag);
                 const title = document.createElement('div'); title.style.cssText = 'font-weight:700;margin-top:2px;'; title.textContent = d.title; div.appendChild(title);
                 const pre = document.createElement('pre'); pre.textContent = d.body; div.appendChild(pre);
+                const cpy = document.createElement('button');
+                cpy.className = 'chip-btn'; cpy.textContent = '📋 复制此草稿';
+                cpy.style.cssText = 'margin-top:6px;font-size:.72rem;';
+                cpy.addEventListener('click', () => {
+                    const t = d.title + '\n' + d.body;
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(t).then(() => setStatus('已复制「' + d.tag + '」。')).catch(() => setStatus('复制失败。'));
+                    } else setStatus('浏览器不支持剪贴板。');
+                });
+                div.appendChild(cpy);
                 out.appendChild(div);
             });
             pushTimeline('wizard', '生成电商文案草稿（' + drafts.length + ' 版）', true, 'ecom');
