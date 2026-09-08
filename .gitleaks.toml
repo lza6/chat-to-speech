@@ -1,11 +1,11 @@
-# gitleaks 配置：豁免 vendor 依赖目录（第三方库的 unk_token 等被 generic-api-key 误判）
+# gitleaks 配置：豁免 vendor 第三方库（kokoro-js unk_token 被 generic-api-key 误判）
 title = "chat-to-speech gitleaks config"
 
 [extend]
 useDefault = true
 
-[[allowlist]]
-description = "vendor 第三方库（kokoro-js / pinyin-pro 打包产物）"
+[allowlist]
+description = "vendor 第三方库打包产物"
 paths = [
   '''engines/kokoro-js\.mjs''',
   '''dist/engines/kokoro-js\.mjs''',

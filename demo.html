@@ -1172,6 +1172,13 @@
                     progressEl.max = chunks.length;
                     progressEl.value = 0;
                     audioBlobs = [];
+                    // CI 修复：引擎1.5 关闭后不应残留"试本地"文案（T_ZH_3 断言 reached15===false）。
+                    // 触发时若引擎1.5 实际不可用，立即抛错走 catch，状态由引擎2/3 兜底文案覆盖。
+                    if (!(await canUseZhWasm())) {
+                        const reason = zhWasmFailReason || '依赖不可用';
+                        pushTimeline('engine15', '本地中文引擎不可用：' + reason, false, '已跳过');
+                        throw new Error(reason);
+                    }
                     setStatus('🀄 在线不可用，试本地中文引擎…');
                     const r = await synthWithZhWasm(text, speed, myId);   // 传原文，分块在引擎内处理（B5）
                     if (r === 'ok') return 'ok';
