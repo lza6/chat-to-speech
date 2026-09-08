@@ -65,6 +65,8 @@ async function test(name, fn) {
     await page.uncheck('#cfg-eng15');
     await page.click('#cfg-save');
     await page.waitForTimeout(300);
+    // CI 根因修复：跨用例共享 #tts-status，T_ZH_1/2 残留"本地中文"文案。朗读前显式清空。
+    await page.evaluate(() => { const el = document.getElementById('tts-status'); if (el) el.textContent = ''; });
     await page.fill('#tts-input', '关闭本地中文引擎后的朗读测试。');
     await page.click('#speak-btn');
     await page.waitForTimeout(6000);
