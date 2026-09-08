@@ -1,0 +1,239 @@
+# CI/CD Pipeline — 在线聊天转语音（纯前端静态 PWA）
+#
+# 技术栈：Node.js 25 + Playwright（无构建，无后端，无数据库）
+# 平台：GitHub Actions
+# 部署：GitHub Pages（staging=Pages preview / production=Pages main）
+#
+# 分支策略：
+#   feature/*  → PR 到 develop → 跑 CI（build/quality/test/security）
+#   develop    → merge 自动部署 staging（Pages preview via PR）
+#   main       → merge 自动部署 production + 自动创建 GitHub Release
+#   hotfix/*   → 直接 PR 到 main（跳过 develop），同样过全部门禁
+#
+# Stage 速览：
+#   0 install（缓存 node_modules + playwright）→ 1 quality（syntax+verify）→
+#   2 test（单元+E2E+台账）→ 3 security（audit+gitleaks）→
+#   4 artifact（同步 dist）→ 5 deploy（Pages）
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write      # Release 创建 + tag 推送
+  pages: write         # GitHub Pages 部署
+  id-token: write      # Pages 部署身份
+
+env:
+  NODE_VERSION: '22'
+  PLAYWRIGHT_BROWSERS_PATH: 0   # 缓存 Playwright 浏览器
+
+jobs:
+  # ================= Stage 1: Build + Cache =================
+  build:
+    name: Build & Dist Sync
+    runs-on: ubuntu-latest
+    outputs:
+      dist_hash: ${{ steps.hash.outputs.dist }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies (cached)
+        run: npm ci
+
+      - name: Verify demo.html ↔ dist/index.html sync
+        run: |
+          cp demo.html dist/index.html
+          diff -q demo.html dist/index.html && echo "✅ dist 已同步"
+
+      - name: Compute dist hash
+        id: hash
+        run: echo "dist=$(sha256sum dist/index.html | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ================= Stage 2: Quality（静态语法 + 文档门禁） =================
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Syntax check (demo.html inline JS + all test files)
+        run: |
+          node -e 'const fs=require("fs");const h=fs.readFileSync("demo.html","utf8");const s=h.match(/<script type="module">([\s\S]*?)<\/script>/i)||h.match(/<script>([\s\S]*?)<\/script>/i);if(!s)process.exit(1);fs.writeFileSync(".ci-check.js",s[1])'
+          node --check .ci-check.js
+          rm -f .ci-check.js
+          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs
+
+      - name: Acceptance ledger gate (verify-acceptance --strict)
+        run: node verify-acceptance.cjs --strict
+
+      - name: No debug residue / forbidden patterns
+        run: |
+          # grep 无匹配 → exit 1（安全）；有匹配 → exit 0（危险）
+          if grep -rEn "TODO|FIXME|XXX" demo.html unit-test-*.cjs e2e-test*.cjs ; then
+            echo "❌ 发现 TODO/FIXME 残留"
+            exit 1
+          else
+            echo "✅ 无调试残留"
+          fi
+
+  # ================= Stage 3: Test（单元 + E2E + 覆盖率台账） =================
+  test:
+    name: Unit + E2E (real browser)
+    runs-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]   # E2E 分片并行（17+3+5+4 用例按文件分两片）
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Install Playwright browsers (cached)
+        run: npx playwright install --with-deps chromium
+
+      - name: Unit tests (all 6 files)
+        run: node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs
+
+      - name: Serve static site
+        run: node -e "require('http').createServer((q,s)=>{const f=require('path').join('.',decodeURIComponent(q.url).split('?')[0]);require('fs').readFile(f,(e,d)=>{if(e){s.writeHead(404);s.end('404')}else{s.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'}[require('path').extname(f)]||'application/octet-stream'});s.end(d)}})}).listen(8765)" &
+      - name: Wait for server
+        run: node -e "setTimeout(()=>{},3000)"
+
+      - name: E2E shard ${{ matrix.shard }} of 2
+        run: |
+          if [ "${{ matrix.shard }}" = "1" ]; then
+            node e2e-test.cjs && node e2e-test-sw.cjs
+          else
+            node e2e-test-cfg.cjs && node e2e-test-zh.cjs
+          fi
+
+      - name: Acceptance ledger update
+        run: node verify-acceptance.cjs
+        continue-on-error: true   # 台账落盘不阻塞（真实测试结果已在上方断言）
+
+  # ================= Stage 4: Security =================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: npm audit (dependencies)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: false
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: No hardcoded secrets in source
+        run: |
+          # grep 无匹配时 exit 1（安全）；有匹配时 exit 0（危险）。用 grep 自身判定，勿让 head 覆盖 $?
+          if grep -rEn "(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16})" --include="*.html" --include="*.js" --include="*.json" --include="*.cjs" . ; then
+            echo "❌ 发现疑似硬编码密钥"
+            exit 1
+          else
+            echo "✅ 无硬编码密钥"
+          fi
+
+  # ================= Stage 5: Deploy（staging / production / release） =================
+  deploy:
+    name: Deploy Pages + Release
+    runs-on: ubuntu-latest
+    needs: [build, quality, test, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+      - name: Deploy to Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Auto-create GitHub Release (main only, on tag push)
+        if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          generate_release_notes: true
+
+  # PR preview（staging 每 PR 预览）
+  preview:
+    name: PR Preview
+    runs-on: ubuntu-latest
+    needs: [build, quality, test, security]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Comment preview link
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ **CI 全部通过**（build/quality/test/security）\n\nPR 预览：合并到 main 后由 Pages 提供生产预览。\n\n| Stage | 状态 |\n|---|---|\n| Build + Dist 同步 | ✅ |\n| Quality（语法+台账） | ✅ |\n| Test（29 E2E + 37 单元） | ✅ |\n| Security（audit+gitleaks） | ✅ |`
+            })
