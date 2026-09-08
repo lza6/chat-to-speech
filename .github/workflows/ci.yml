@@ -162,10 +162,13 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
         continue-on-error: false
 
-      - name: Secret scan (gitleaks)
+      - name: Secret scan (gitleaks, vendor 豁免)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        with:
+          config_path: .gitleaks.toml
 
       - name: No hardcoded secrets in source
         run: |
