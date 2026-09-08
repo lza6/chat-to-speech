@@ -439,30 +439,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             <input type="search" id="history-search" placeholder="搜索历史文本或语音…" aria-label="搜索历史">
         </div>
         <div class="history-panel" id="history-panel" role="region" aria-label="朗读历史"></div>
-        <!-- A1：透明操作时间线（黑匣子日志全开）——事件信封 + 追加式 store + 投影时间线 -->
-        <div class="timeline-panel" id="timeline-panel" role="region" aria-label="透明操作时间线" style="display:none;">
-            <div id="timeline-list" class="timeline-list" aria-live="polite"></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                <button class="btn ghost" id="timeline-export">📤 导出日志 JSON</button>
-                <button class="btn ghost" id="timeline-clear">🗑️ 清空日志</button>
-            </div>
-            <div id="timeline-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
-        </div>
         <div class="status" id="tts-status" role="status" aria-live="polite"></div>
-        <!-- B1：本地记忆与画像（三层：conversations/records/persona；画像克制更新） -->
-        <div class="memory-panel" id="memory-panel" role="region" aria-label="本地记忆与画像" style="display:none;">
-            <div class="memory-tabs" style="display:flex;gap:8px;margin-bottom:8px;">
-                <button class="btn ghost memory-tab" data-tab="persona">👤 画像</button>
-                <button class="btn ghost memory-tab" data-tab="records">🗂️ 记忆</button>
-                <button class="btn ghost memory-tab" data-tab="skills">✨ 结晶技能</button>
-            </div>
-            <div id="memory-body" aria-live="polite"></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                <button class="btn ghost" id="memory-export">📤 导出记忆 JSON</button>
-                <button class="btn ghost" id="memory-clear">🗑️ 清空记忆</button>
-            </div>
-            <div id="memory-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
-        </div>
         <div class="notice" id="tts-notice" role="alert"></div>
     </section>
 
@@ -535,6 +512,37 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             <div id="wz-ecom-out" aria-live="polite" style="margin-top:10px;"></div>
         </div>
     </section>
+    
+    <!-- 数据管理：时间线 + 记忆 抽屉收纳（P2-5） -->
+    <section class="panel" id="data-panel">
+        <h2 class="panel-title">🗄️ 数据管理（时间线 · 记忆）</h2>
+        <div class="wizard-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;" role="tablist" aria-label="数据管理">
+            <button class="btn ghost wizard-tab" data-wtab="timeline" aria-pressed="true">🧾 透明时间线</button>
+            <button class="btn ghost wizard-tab" data-wtab="memory" aria-pressed="false">🧠 本地记忆</button>
+        </div>
+        <div class="wizard-body" data-wtab-pane="timeline">
+            <div id="timeline-list" class="timeline-list" aria-live="polite"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn ghost" id="timeline-export">📤 导出日志 JSON</button>
+                <button class="btn ghost" id="timeline-clear">🗑️ 清空日志</button>
+            </div>
+            <div id="timeline-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
+        </div>
+        <div class="wizard-body" data-wtab-pane="memory" style="display:none;">
+            <div class="memory-tabs" style="display:flex;gap:8px;margin-bottom:8px;">
+                <button class="btn ghost memory-tab" data-tab="persona">👤 画像</button>
+                <button class="btn ghost memory-tab" data-tab="records">🗂️ 记忆</button>
+                <button class="btn ghost memory-tab" data-tab="skills">✨ 结晶技能</button>
+            </div>
+            <div id="memory-body" aria-live="polite"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                <button class="btn ghost" id="memory-export">📤 导出记忆 JSON</button>
+                <button class="btn ghost" id="memory-clear">🗑️ 清空记忆</button>
+            </div>
+            <div id="memory-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
+        </div>
+    </section>
+
     </main>
 
     <!-- 闭环引擎：一行脚本接入全部能力 -->
@@ -2368,6 +2376,9 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 t.addEventListener('click', () => {
                     tabs.forEach(x => x.setAttribute('aria-pressed', String(x === t)));
                     panes.forEach(p => { p.style.display = (p.dataset.wtabPane === t.dataset.wtab) ? 'block' : 'none'; });
+                    // 数据管理抽屉：切到 memory 渲染画像；切到 timeline 渲染时间线
+                    if (t.dataset.wtab === 'memory') memoryRender('persona');
+                    else if (t.dataset.wtab === 'timeline') renderTimeline();
                 });
             });
             // 任务看板

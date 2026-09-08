@@ -24,13 +24,13 @@ async function test(name, fn) {
   // T_WZ_1 场景向导面板存在 + 三页签
   await test('T_WZ_1 场景向导面板 + 三页签存在', async () => {
     ok(await page.isVisible('#wizard-panel'), '场景向导面板不可见');
-    const tabs = await page.locator('.wizard-tab').count();
+    const tabs = await page.locator('#wizard-panel .wizard-tab').count();
     assert.equal(tabs, 3, '应有 3 个页签（看板/PPT/电商）');
     ok(await page.isVisible('#wz-task-input'), '看板任务输入不可见');
     ok(await page.locator('#wz-ppt-title').count() === 1, 'PPT 标题输入应存在于 DOM（默认页签隐藏）');
     ok(await page.locator('#wz-ecom-name').count() === 1, '电商商品名输入应存在于 DOM');
   });
-  await test('T_WZ_2 任务看板添加 + 推进流转', async () => {    await page.click('.wizard-tab[data-wtab="board"]');
+  await test('T_WZ_2 任务看板添加 + 推进流转', async () => {    await page.click('#wizard-panel .wizard-tab[data-wtab="board"]');
     await page.fill('#wz-task-input', '给文章配音');
     await page.click('#wz-task-add');
     await page.waitForTimeout(200);
@@ -59,7 +59,7 @@ async function test(name, fn) {
 
   // T_WZ_4 PPT 大纲：分页 + 几何审计
   await test('T_WZ_4 PPT 大纲解析 + 审计渲染', async () => {
-    await page.click('.wizard-tab[data-wtab="ppt"]');
+    await page.click('#wizard-panel .wizard-tab[data-wtab="ppt"]');
     await page.fill('#wz-ppt-title', '测试演示');
     await page.fill('#wz-ppt-spec', '封面：周报\n进展 A\n进展 B\n\n第二章\n要点 X');
     await page.click('#wz-ppt-gen');
@@ -72,7 +72,7 @@ async function test(name, fn) {
 
   // T_WZ_5 电商文案：三段草稿 + 禁用词替换
   await test('T_WZ_5 电商三段草稿 + 禁用词替换', async () => {
-    await page.click('.wizard-tab[data-wtab="ecom"]');
+    await page.click('#wizard-panel .wizard-tab[data-wtab="ecom"]');
     await page.fill('#wz-ecom-name', '静音风扇');
     await page.fill('#wz-ecom-price', '199');
     await page.fill('#wz-ecom-sells', '无感运转\n省电\n全网最低价');
