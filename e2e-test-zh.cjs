@@ -69,9 +69,10 @@ async function test(name, fn) {
     await page.click('#speak-btn');
     await page.waitForTimeout(6000);
     const status = await page.textContent('#tts-status');
-    // CI 修复：引擎1.5 关闭后，降级链应走引擎2/3（离线出声或文本兜底），不得出现引擎1.5 痕迹
+    // CI 修复：引擎1.5 关闭后，降级链走引擎2/3 两端之一都算正确闭环。
+    // 引擎2 = 离线出声（headless 有 voices 时）；引擎3 = 文本兜底（剪贴板 / 提示）。
     const reached15 = /本地中文|试本地|🀄/.test(status);
-    const fellThrough = /离线|浏览器内置|播放完毕|不可用|复制|文本/.test(status);
+    const fellThrough = /离线|浏览器内置|播放完毕|复制|不可用|语音服务/.test(status);
     assert(reached15 === false, '关闭后不应出现引擎1.5，status=' + status);
     assert(fellThrough, '关闭引擎1.5 后应走引擎2/3 兜底，status=' + status);
     // 恢复默认（保留用户配置破坏风险最小）
