@@ -1,6 +1,6 @@
 [package]
 name = "chat-tts-desktop"
-version = "4.2.0"
+version = "4.5.1"
 description = "在线聊天转语音 — 纯前端 TTS 桌面版（引擎1.5 本地中文 WASM）"
 authors = ["wdawdwa"]
 edition = "2021"

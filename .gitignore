@@ -30,3 +30,11 @@ verify-kokoro.html
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+# Tauri Rust 构建缓存（2.1G 级，绝不可入库；重新 `npx tauri build` 即再生）
+/src-tauri/target/
+
+# 桌面版构建产物（安装包/免安装 exe，体积大，按需手动处理，不入库）
+/发布/
+
+# 本机归档（中间产物/旧版变更报告副本）
+/归档/
