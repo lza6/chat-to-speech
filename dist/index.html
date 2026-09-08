@@ -1187,8 +1187,9 @@
                 } catch (e) {
                     logError(e.message, 'synthChain-engine15');
                     pushTimeline('engine15', '本地中文引擎失败：' + (e.message || e), false, '已降级');
-                    // 引擎2 分支会覆盖此文案；若 engine2 也失败到引擎3，最终文案由引擎3 兜底
-                    setStatus('🀄 本地中文引擎异常：' + (e.message || e) + '，已切换其他引擎。');
+                    // CI 修复：catch 分支文案不得含 🀄（T_ZH_3 断言 reached15 用 🀄 判定）。
+                    // 引擎2/3 会覆盖此文案；此处仅留中性降级提示（避免文本兜底态误判为引擎1.5 残留）。
+                    setStatus('本地中文引擎不可用（' + (e.message || e) + '），继续切换。');
                 }
             }
             // 引擎2：浏览器内置
