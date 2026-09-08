@@ -281,7 +281,7 @@
     <!-- 闭环②：任意文本转语音（直连 TTS 端点，不依赖聊天模型） -->
     <section class="tts-demo">
         <h2>任意文本转语音</h2>
-        <p class="desc">输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。</p>
+        <p class="desc">输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。语速实时可调。</p>
         <div class="tts-row">
             <div style="flex:1 1 320px; display:flex; flex-direction:column;">
                 <label class="visually-hidden" for="tts-input">要朗读的文字</label>
@@ -302,7 +302,7 @@
                 </select>
                 <span id="endpoint-badge" class="ep-badge ep-unknown" title="正在检测语音端点…">● 检测中</span>
                 <label class="visually-hidden" for="speed-slider">语速</label>
-                <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1" aria-label="语速">
+                <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1" aria-label="语速" title="朗读中可实时拖动调节语速">
                 <button class="btn" id="speak-btn" aria-label="朗读这段话" aria-keyshortcuts="Control+Enter">🔊 朗读这段话</button>
                 <button class="btn ghost" id="stop-btn" aria-label="停止朗读" aria-keyshortcuts="Escape">⏹ 停止</button>
             </div>
@@ -496,7 +496,7 @@
         const historySearchWrap = document.getElementById('history-search-wrap');
         const historySearch = document.getElementById('history-search');
 
-        // P0-3 配置中心：用户自带端点 + 模型 + 语音列表（v4 新增）
+        // ============ P0-3 配置中心：用户自带端点 + 模型 + 语音列表 + 引擎开关（v4 新增） ============
         // key 前缀统一 tts_cfg_*；API Key 走库的 UncloseVault（若可用），不裸 localStorage
         const CFG_KEY = 'tts_cfg_v1';
         const CFG_VERSION = 1;
@@ -510,7 +510,9 @@
             api_key: '',            // 仅当库无 Vault 时退 localStorage（非首选）
             api_key_in_vault: true,// 优先用 UncloseVault
             engines_enabled: { engine1: true, engine15: true, engine2: true, engine3: true },
-            clean_custom_prefixes: [] // 用户自定义推理清洗前缀
+            clean_custom_prefixes: [], // 用户自定义推理清洗前缀
+            theme: 'auto',          // P2-4 增强：主题并入配置中心持久化（迁移旧 tts_theme_v2）
+            speed: 1               // P2-4 增强：语速并入配置中心持久化（迁移旧滑块值）
         };
         function loadCfg() {
             try {
@@ -912,7 +914,8 @@
                 if (!('speechSynthesis' in window)) return resolve('error');
                 if (!synthVoices.length) loadSynthVoices();
                 if (!synthVoices.length) return resolve('error');
-                const rate = Math.max(0.1, Math.min(10, speed || 1));
+                const startRate = parseFloat(speed || 1);
+                const store = { rate: Math.max(0.1, Math.min(10, startRate)) };
                 const utterQueue = [...textChunks];
                 let stopped = false;
                 let resolved = false;
@@ -950,7 +953,9 @@
                     const u = new SpeechSynthesisUtterance(chunk);
                     u.lang = synthZhVoice ? synthZhVoice.lang : 'zh-CN';
                     if (synthZhVoice) u.voice = synthZhVoice;
-                    u.rate = rate;
+                    // P2-4 增强：朗读中实时调节语速（读滑块当前值）
+                    u.rate = Math.max(0.1, Math.min(10, store.rate));
+                    if (speedSlider && speedSlider.value) store.rate = Math.max(0.1, Math.min(10, parseFloat(speedSlider.value)));
                     u.onend = speakNext;
                     u.onerror = () => finish('error');
                     progressEl.value = textChunks.length - utterQueue.length;
@@ -1795,19 +1800,38 @@
         }
 
         // ============ 主题切换（F8）：三态 auto/dark/light ============
+        // P2-4 增强：auto 模式下跟随系统（prefers-color-scheme），切换时实时生效
         function applyTheme(theme) {
-            if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
-            else document.documentElement.setAttribute('data-theme', theme);
-            themeBtn.textContent = theme === 'dark' ? '☀️' : (theme === 'light' ? '🌗' : '🌙');
+            if (theme === 'auto') {
+                document.documentElement.removeAttribute('data-theme');
+                // 跟随系统深浅色（仅作为状态提示，无 data-theme 时 CSS @media 已自动适配）
+                themeBtn.textContent = '🌙';
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+                themeBtn.textContent = theme === 'dark' ? '☀️' : '🌗';
+            }
             themeBtn.setAttribute('aria-label', `当前主题：${theme}，点击切换`);
             themeBtn.setAttribute('aria-keyshortcuts', 'Control+Comma');
         }
         function cycleTheme() {
-            const cur = localStorage.getItem(THEME_KEY) || 'auto';
+            const cur = loadCfg().theme || 'auto';
             const next = cur === 'auto' ? 'dark' : (cur === 'dark' ? 'light' : 'auto');
-            localStorage.setItem(THEME_KEY, next);
+            const c = loadCfg();
+            c.theme = next;
+            saveCfg(c);
+            // 旧键同步（供极旧页面/降级路径读取）
+            try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
             applyTheme(next);
         }
+        // auto 模式下系统深浅色实时联动（浏览器支持 matchMedia 时）
+        try {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            const onSys = () => {
+                if ((loadCfg().theme || 'auto') === 'auto') applyTheme('auto');
+            };
+            if (mq.addEventListener) mq.addEventListener('change', onSys);
+            else if (mq.addListener) mq.addListener(onSys);
+        } catch (_) {}
 
         // ============ 字符计数 ============
         function updateCharCount() {
@@ -1848,6 +1872,10 @@
         readBtn.addEventListener('click', readPage);
         ttsInput.addEventListener('input', updateCharCount);
         voiceSel.addEventListener('change', () => { try { localStorage.setItem(VOICE_KEY, voiceSel.value); } catch(_){} });
+        // P2-4 增强：语速滑动即持久化到配置中心（朗读时也实时生效）
+        speedSlider.addEventListener('input', () => {
+            try { const c = loadCfg(); c.speed = parseFloat(speedSlider.value); saveCfg(c); } catch (_) {}
+        });
         historyBtn.addEventListener('click', () => {
             const open = historyPanel.classList.toggle('open');
             historyBtn.setAttribute('aria-expanded', String(open));
@@ -2456,9 +2484,22 @@
         }
         // 初始化
         updateCharCount();
+        // P2-4 增强：主题与语速统一从配置中心恢复（theme 合并迁移旧 tts_theme_v2）
         try {
-            const savedTheme = localStorage.getItem(THEME_KEY) || 'auto';
-            applyTheme(savedTheme);
+            const c = loadCfg();
+            // 迁移：旧键 tts_theme_v2 有值且 cfg.theme 未设 → 搬进配置中心
+            const legacyTheme = localStorage.getItem(THEME_KEY);
+            if (c.theme == null && legacyTheme) {
+                c.theme = legacyTheme;
+                saveCfg(c);
+            }
+            try { localStorage.removeItem(THEME_KEY); } catch (_) {}
+            const theme = c.theme || 'auto';
+            applyTheme(theme);
+            if (theme !== 'auto') { try { localStorage.setItem(THEME_KEY, theme); } catch (_) {} }
+            // 语速恢复
+            const sp = parseFloat(c.speed);
+            if (sp >= 0.5 && sp <= 2 && speedSlider) speedSlider.value = String(sp);
             // savedVoice 恢复交给 initVoices 内部处理（此时下拉只有 3 项兜底，动态加载后再匹配）
         } catch(_){}
         // P0-1: 预加载浏览器语音列表（异步，voiceschanged 后填充）
