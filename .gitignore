@@ -6,6 +6,22 @@ node_modules/
 server.cjs
 .ci-check.js
 test-cases/*.tmp
+
+# 本机 AI 工具链配置（各 AI 助手的 skills/缓存，非项目产物）
+.agents/
+.claude/
+.cline/
+.codebuddy/
+.codegraph/
+.continue/
+.freebuff/
+.junie/
+.kiro/
+.ignore
+.mcp.json
+AGENTS.md
+opencode.json
+skills-lock.json
 # 临时验证脚本（静态语法/夹具核验用，不入库）
 verify-*.cjs
 !verify-acceptance.cjs
