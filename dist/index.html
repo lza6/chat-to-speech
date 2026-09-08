@@ -129,6 +129,17 @@ main { width: 100%; max-width: 980px; display: flex; flex-direction: column; ali
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
+.tts-mirror {
+  margin-top: 8px; padding: 12px 14px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--ink); font: inherit; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+  display: none; min-height: 48px; max-height: 260px; overflow-y: auto;
+}
+.tts-mirror.show { display: block; }
+mark.hl-current {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--ink); border-radius: 3px; padding: 0 1px;
+}
 .tts-meta { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--muted); margin-top: 6px; gap: 8px; flex-wrap: wrap; }
 #char-count.warn { color: var(--accent); font-weight: 600; }
 .tts-controls { display: flex; flex-direction: column; gap: 10px; align-items: stretch; min-width: 220px; }
@@ -345,6 +356,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 <label class="visually-hidden" for="tts-input">要朗读的文字</label>
                 <textarea id="tts-input" maxlength="5000"
                     placeholder="在这里输入要朗读的文字，例如：你好，这是一个把文字变成声音的免费工具。">你好，这是一个把文字变成声音的免费工具。输入任意内容，点击下方按钮就能听到。</textarea>
+                <div id="tts-mirror" class="tts-mirror" aria-live="off" aria-hidden="false"></div>
                 <div class="tts-meta">
                     <span id="char-count">0 / 5000</span>
                     <span><kbd>Ctrl+Enter</kbd> 朗读 · <kbd>Esc</kbd> 停止 · <kbd>空格</kbd> 暂停</span>
@@ -834,6 +846,37 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             return sentences;
         }
 
+
+        // ============ P1-2：朗读高亮镜像（块级，Chrome onboundary 不可靠故用块级定时推进） ============
+        const HL_MIRROR = 'tts-mirror';
+        let hlTimer = null; let hlCurrent = -1; let hlChunks = [];
+        function hlMirrorEl() { return document.getElementById(HL_MIRROR); }
+        function hlRender() {
+            const m = hlMirrorEl(); if (!m) return;
+            if (!hlChunks.length || hlCurrent < 0) { m.classList.remove('show'); m.innerHTML = ''; return; }
+            m.classList.add('show');
+            m.innerHTML = hlChunks.map((c, i) =>
+                i === hlCurrent ? '<mark class="hl-current">' + esc(c) + '</mark>' : esc(c)
+            ).join('');
+            const cur = m.querySelector('mark.hl-current');
+            if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function hlStart(chunks) {
+            hlChunks = chunks; hlCurrent = 0;
+            clearInterval(hlTimer);
+            hlRender();
+            // 块级推进：每 chunk 按 600ms * 字符数估算（Chrome boundary 不可靠）
+            hlTimer = setInterval(() => {
+                if (isStopped) { hlClear(); return; }
+                hlCurrent = Math.min(hlCurrent + 1, hlChunks.length - 1);
+                hlRender();
+            }, Math.max(260, 480 * Math.min(8, (hlChunks[hlCurrent] || '').length || 1) / 8));
+        }
+        function hlAdvance() {
+            if (hlChunks.length && !isStopped) { hlCurrent = Math.min(hlCurrent + 1, hlChunks.length - 1); hlRender(); }
+        }
+        function hlClear() { clearInterval(hlTimer); hlCurrent = -1; hlChunks = []; hlRender(); }
         // ============ P0-1: TTS 多引擎降级链 ============
         // 引擎1：speech.ai.unturf.com（F5-TTS，42语音，质量最高）
         // 引擎2：浏览器原生 SpeechSynthesis（离线，音色机械，需有中文语音）
@@ -1008,6 +1051,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                     if (isStopped || myId !== speakRequestId) return finish('stopped');
                     if (utterQueue.length === 0) return finish('ok');
                     const chunk = utterQueue.shift();
+                    hlAdvance(); // P1-2 每块完成推进高亮
                     const u = new SpeechSynthesisUtterance(chunk);
                     u.lang = synthZhVoice ? synthZhVoice.lang : 'zh-CN';
                     if (synthZhVoice) u.voice = synthZhVoice;
@@ -1247,6 +1291,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         async function synthChain(text, voice, speed, myId) {
             currentEngine = 0;
             const chunks = splitIntoChunks(text);
+            hlStart(chunks); // P1-2 朗读高亮
             const cfg = loadCfg();
             // 引擎1：在线 F5-TTS
             if (cfg.engines_enabled.engine1 !== false) {
@@ -1420,6 +1465,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         }
 
         function stopPlayback() {
+            hlClear(); // P1-2 停止时清高亮
             isStopped = true;
             isSynthesizing = false;
             // P1-4: 同时取消浏览器内置语音（引擎2）
