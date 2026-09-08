@@ -969,15 +969,16 @@
         }
 
         async function synthWithZhWasm(text, speed, myId) {
-            if (zhWasmBusy) { setStatus('🀄 本地中文引擎仍在上次加载中，稍候再试。'); return 'error'; }
+            if (zhWasmBusy) { setStatus('本地中文引擎仍在上次加载中，稍候再试。'); return 'error'; }
             zhWasmBusy = true;
             try {
                 if (!(await canUseZhWasm())) {
-                    setStatus('🀄 本地中文引擎不可用：' + (zhWasmFailReason || '依赖加载失败') + '，已切换其他引擎。');
+                    setStatus('本地中文引擎不可用：' + (zhWasmFailReason || '依赖加载失败') + '，已切换其他引擎。');
                     return 'error';
                 }
                 const { tts, pinyin } = await loadZhWasmEngine();
                 if (isStopped || myId !== speakRequestId) return 'stopped';
+                // 前置可达性已由 synthChain 校验，但这里二次兜底：若引擎加载抛错，由上层 catch 处理（文案不含 🀄）
                 // 分块合成（B5）：不整段拼接，逐 chunk phonemize+generate，规避上下文窗口截断
                 const chunks = splitIntoChunks(text);
                 const wavs = [];
