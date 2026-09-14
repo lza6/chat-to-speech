@@ -826,12 +826,13 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             // 句末标点保留在块尾，TTS 在断句处自然停顿，避免硬切"你好。"成"你好"+"。"
             // 换行也作为分隔符，保证段落边界自然停顿
             if (!text) return [];
-            const sep = /([。！？；\n.!?;])/g;
+            // E2 升级：连续换行聚合为单分隔符，段落边界不参与跨块合并
+            const sep = /([。！？；]|[.!?;]|\n+)/g;
             const units = [];
             let last = 0, m;
             while ((m = sep.exec(text)) !== null) {
-                const unit = text.slice(last, m.index + 1);
-                last = m.index + 1;
+                const unit = text.slice(last, m.index + m[0].length);
+                last = m.index + m[0].length;
                 if (unit) units.push(unit);
             }
             if (last < text.length) units.push(text.slice(last));
@@ -840,9 +841,18 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             const sentences = [];
             for (const unit of units) {
                 if (unit.length > CHUNK_SIZE) {
-                    // 单句超长（无标点的连续串），硬切
-                    for (let i = 0; i < unit.length; i += CHUNK_SIZE) sentences.push(unit.slice(i, i + CHUNK_SIZE));
-                } else if (sentences.length && (sentences[sentences.length - 1] + unit).length <= CHUNK_SIZE) {
+                    // E2：超长无标点串硬切，优先回退到英文空格边界避免切断单词
+                    let rest = unit;
+                    while (rest.length > CHUNK_SIZE) {
+                        let cut = CHUNK_SIZE;
+                        const sp = rest.lastIndexOf(' ', CHUNK_SIZE);
+                        if (sp > CHUNK_SIZE - 16 && sp > 0) cut = sp + 1;
+                        sentences.push(rest.slice(0, cut));
+                        rest = rest.slice(cut);
+                    }
+                    if (rest) sentences.push(rest);
+                } else if (sentences.length && !/\n\s*$/.test(sentences[sentences.length - 1]) && (sentences[sentences.length - 1] + unit).length <= CHUNK_SIZE) {
+                    // E2：上一块以换行结尾（段落边界）则不合并，保证段落自然停顿
                     sentences[sentences.length - 1] += unit;
                 } else {
                     sentences.push(unit);
@@ -854,6 +864,57 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             return sentences;
         }
 
+
+        // ============ E1：SSML 子集解析（白名单 + 属性校验 + 停顿/韵律） ============
+        // 支持 <break time="2s"/> 停顿、<prosody rate="slow|x|0.5-4"> 语速、<emphasis> 强调（剥标签保留文本）。
+        // 非白名单标签 / 危险属性（on*=）/ 非法属性值 → ok=false 并给出人类可读错误，绝不静默吞错。
+        const SSML_ALLOWED = ['break', 'prosody', 'emphasis'];
+        const SSML_RATE_MAP = { 'x-slow': 0.5, slow: 0.75, medium: 1, fast: 1.5, 'x-fast': 2 };
+        function ssmlAttrs(raw) {
+            const o = {}; const re = /([a-zA-Z-]+)\s*=\s*"([^"]*)"/g; let m;
+            while ((m = re.exec(raw || '')) !== null) o[m[1].toLowerCase()] = m[2];
+            return o;
+        }
+        function parseSSML(input) {
+            const src = String(input == null ? '' : input);
+            const errors = []; const breaks = []; let rateOverride = null;
+            if (src.indexOf('<') === -1) return { ok: true, plain: src, errors: errors, rateOverride: rateOverride, breaks: breaks };
+            const TOKEN = /<\/?([a-zA-Z][a-zA-Z-]*)((?:\s[^<>]*?)?)(\/?)>/g;
+            let out = '', last = 0, m;
+            while ((m = TOKEN.exec(src)) !== null) {
+                out += src.slice(last, m.index);
+                last = TOKEN.lastIndex;
+                const closing = m[0].charAt(1) === '/';
+                const name = m[1].toLowerCase();
+                const attrsRaw = m[2] || '';
+                if (SSML_ALLOWED.indexOf(name) === -1) { errors.push('不支持的 SSML 标签：<' + name + '>'); continue; }
+                if (/\son[a-z]+\s*=/i.test(attrsRaw)) { errors.push('拒绝危险属性（事件处理器）'); continue; }
+                const attrs = ssmlAttrs(attrsRaw);
+                if (name === 'break' && !closing) {
+                    const t = attrs.time || '500ms';
+                    if (!/^\d+(?:\.\d+)?(?:ms|s)$/i.test(t)) { errors.push('break time 非法：' + t); continue; }
+                    const ms = /ms$/i.test(t) ? parseFloat(t) : parseFloat(t) * 1000;
+                    breaks.push({ index: out.length, ms: ms });
+                    out += '\n\n'; // 转段落边界 → splitIntoChunks 里成为独立块，形成自然停顿
+                } else if (name === 'prosody' && !closing && attrs.rate) {
+                    const key = attrs.rate.toLowerCase();
+                    const n = (SSML_RATE_MAP[key] != null) ? SSML_RATE_MAP[key] : parseFloat(attrs.rate);
+                    if (!isFinite(n) || n <= 0) errors.push('prosody rate 非法：' + attrs.rate);
+                    else rateOverride = Math.min(4, Math.max(0.25, n));
+                }
+            }
+            out += src.slice(last);
+            out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+            return { ok: errors.length === 0, plain: out, errors: errors, rateOverride: rateOverride, breaks: breaks };
+        }
+        // V5-9 预埋：公开只读工具 API（供 E2E 断言 + 后续页面嵌入复用）
+        try {
+            window.__chattts = Object.assign(window.__chattts || {}, {
+                version: '4.6.0',
+                splitIntoChunks: splitIntoChunks,
+                parseSSML: parseSSML
+            });
+        } catch (_) {}
 
         // ============ P1-2：朗读高亮镜像（块级，Chrome onboundary 不可靠故用块级定时推进） ============
         const HL_MIRROR = 'tts-mirror';
@@ -1535,8 +1596,16 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 
         async function speak() {
             clearNotice();
-            const text = ttsInput.value.trim();
+            let text = ttsInput.value.trim();
             if (!text) { setStatus('请先输入要朗读的文字。'); return; }
+            // E1：检测到 SSML 标签时先解析（白名单校验 + 停顿转段落边界 + 韵律整体语速系数）
+            const ssml = /<\s*\/?\s*(?:break|prosody|emphasis)\b/i.test(text) ? parseSSML(text) : null;
+            if (ssml) {
+                if (!ssml.ok) { setStatus('SSML 解析错误：' + ssml.errors[0]); showNotice('SSML 解析错误：' + ssml.errors[0]); return; }
+                pushTimeline('ssml', 'SSML 解析成功：停顿 ' + ssml.breaks.length + ' 处，语速系数 ' + (ssml.rateOverride || 1), true, 'ssml');
+                text = ssml.plain;
+                if (!text) { setStatus('SSML 内容为空，无可朗读文本。'); return; }
+            }
             if (text.length > MAX_CHARS) { setStatus(`文本过长，请精简到 ${MAX_CHARS} 字以内。`); return; }
 
             const myId = ++speakRequestId;  // 竞态保护
@@ -1550,7 +1619,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             speakBtn.disabled = true;
             speakBtn.setAttribute('data-loading', 'true');
             const voice = voiceSel.value;
-            const speed = parseFloat(speedSlider.value);
+            const speed = parseFloat(speedSlider.value) * (ssml && ssml.rateOverride ? ssml.rateOverride : 1);
 
             try {
                 const r = await synthChain(text, voice, speed, myId);

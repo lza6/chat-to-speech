@@ -24,13 +24,13 @@ description: 在线聊天转语音项目的持续演进工作流。新增 API/�
 4. **编码前必查** `优化计划/下一步改进指南-v4.2升级版.md`（修正指令：哪些旧结论已死、v4.2 按什么顺序做）→ 再查 `优化计划/下一步改进指南.md`（重写版，v4.2→v5→v6+ 全量节点定义）的"执行顺序与依赖图"。**历史残留**：`下一步改进指南-v3基线归档.md` / `-v4.1基线归档.md` 为历史参考，不作为依据。
 5. **编码后必跑** 下方"验证命令"清单，真实通过才能声称完成。
 
-## 项目当前状态基线（2026-09-07 v4.2 落地 · tag v4.2.0）
+## 项目当前状态基线（2026-09-15 v4.6.0 落地 · 89/89 PASS）
 
 > **过时判据**：若 `demo.html` / `e2e-test*.cjs` / `workflow_status.md` / `优化计划/*.md` 的 mtime 晚于上方日期，或 git log 有新 commit，本节可能过时，需先核验再采信。
 
 ### 三文件架构（硬约束，不得破坏）
 
-- `demo.html`（**1676 行**，全部 JS/CSS 内联 + 引擎1.5 WASM 中文音素器内联版）— 主文件，三闭环逻辑全在此（四级降级链）
+- `demo.html`（**2726 行**，全部 JS/CSS 内联 + 引擎1.5 WASM 中文音素器内联版 + E1 SSML 子集 + E2 分块增强）— 主文件，三闭环逻辑全在此（四级降级链）
 - `sw.js`（143 行）— Service Worker：同源 NetworkFirst + 跨域 uncloseai.com SWR 7 天 TTL + maxEntries=50 + ETag 304
 - `site.webmanifest`（20 行）— PWA 清单，display:standalone
 - **引擎1.5 伴随文件（不进三文件承诺，但必须入库）**：`tts-zh.js`（167 行，Node 可测的中文音素器/voice 表，与 demo.html 内联版双实现同步）、`engines/pinyin-pro.mjs`（468KB，jsdelivr vendor 兜底）、`engines/kokoro-js.mjs`（2.1MB，jsdelivr vendor 兜底）
@@ -94,7 +94,11 @@ synthChain(text, voice, speed, myId):
 | 单元 并发池 | `unit-test-pool.cjs` | U_POOL 4 | ✅ 4/4 |
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 | ✅ 8/8 |
 | 单元 中文引擎 | `unit-test-zh.cjs` | U_ZH 9（音素器+voice 表+WAV 四分支+CJK 判定）| ✅ 9/9 |
-| **合计** | — | **57** | **✅ 57/57** |
+| E2E SSML/分块 | `e2e-test-ssml.cjs` | T_SPLIT_1 + T_SSML_1-3 = 4 | ✅ 4/4 |
+| 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 | ✅ 7/7 |
+| **合计** | — | **89** | **✅ 89/89** |
+
+> **v4.5.1 新增（2026-09-15）**：E1 SSML 子集（`parseSSML` 白名单 break/prosody/emphasis + 属性校验 + speak() 集成 + `pushTimeline('ssml')`）；E2 分块增强（段落边界不合并 + 英文词边界回退 + 无损）；P-1 版本真源 `VERSION`（四处一致性由 `verify-acceptance --strict` 硬校验）；`window.__chattts = { version, splitIntoChunks, parseSSML }`。改分块/SSML 时必跑 `unit-test-ssml.cjs` + `e2e-test-ssml.cjs`，且内联版与测试拷贝必须同步。
 
 > **基线说明**：v4.1 为 44/44（17+3+5+19）；v4.2 起 57/57（新增 T_ZH 4 + U_ZH 9，unit-zh 从 0→9）。
 

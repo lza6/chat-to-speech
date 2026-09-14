@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updatedAt": "2026-09-09",
+  "updatedAt": "2026-09-15",
   "features": [
     {
       "id": "A1",
@@ -43,7 +43,28 @@
       "source": "demo.html (wzValidateCommodity/wzEcomTemplate/wzCensor) + unit-test-wizard.cjs WZ_5/6",
       "expect": { "require_evidence": ["wz-ecom-gen", "标题版/正文版/快发版", "★ 禁用词替换"] },
       "verifiedBy": "unit WZ_5/6 + E2E T_WZ_5"
+    },
+    {
+      "id": "E1",
+      "name": "SSML 子集解析（break/prosody/emphasis 白名单 + 属性校验）",
+      "source": "demo.html (parseSSML/SSML_ALLOWED/SSML_RATE_MAP + speak() 集成) + unit-test-ssml.cjs",
+      "expect": { "require_evidence": ["parseSSML", "白名单拒绝非白名单标签", "危险属性拒绝", "break 转段落边界", "prosody rate 映射语速", "pushTimeline kind=ssml"] },
+      "verifiedBy": "unit U_SSML_1-3 + E2E T_SSML_1/2/3"
+    },
+    {
+      "id": "E2",
+      "name": "分块策略增强（段落边界 + 词边界硬切 + 无损）",
+      "source": "demo.html (splitIntoChunks) + unit-test-ssml.cjs",
+      "expect": { "require_evidence": ["连续换行聚合为段落边界", "禁止跨块合并", "英文词边界回退硬切", "分块无损（join===原文）"] },
+      "verifiedBy": "unit U_SPLIT_1-4 + E2E T_SPLIT_1"
+    },
+    {
+      "id": "P-1",
+      "name": "版本真源治理（VERSION 唯一真源 + 四处一致性硬校验）",
+      "source": "VERSION + verify-acceptance.cjs (versionFail) + package.json",
+      "expect": { "require_evidence": ["VERSION 文件存在", "package.json/tauri.conf.json/demo.html 与 VERSION 一致", "不一致时門禁 FAIL"] },
+      "verifiedBy": "node verify-acceptance.cjs --strict → VERSION: 4.6.0 · 四处一致"
     }
   ],
-  "notes": "Phase B：A1+A2+A3+B1+B2 此前已落地；本轮新增 B3+B4+B5 场景向导（任务看板/PPT/电商）+ 全套回归 78 项全绿（35 E2E + 43 单元）。README/workflow_status/变更报告 v6 待同步。"
+  "notes": "Phase B：A1+A2+A3+B1+B2 此前已落地；B3+B4+B5 场景向导落地；2026-09-15 v4.6 起手：E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理，全套回归 89 项全绿（39 E2E + 50 单元）。README/workflow_status/指南已同步。"
 }

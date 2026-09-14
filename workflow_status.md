@@ -438,3 +438,60 @@ $ node e2e-test-sw.cjs
 - C1：图片/视频场景扩展（复用 wizard 状态机 + 合成 chain）。
 - 引擎1.5 真机出声待测（前置外部受限）。
 - CI action @v5 升级（Node 24 已自动跑，不影响功能）。
+
+---
+
+## 11. v4.6 起手落地台账（2026-09-15）
+
+> 本批按《优化计划/下一步改进指南.md》E1/E2/P-1 节点落地。证据等级：`已验证` = 真实命令 + 真实输出。
+
+### 11.1 交付节点
+
+| 节点 | 内容 | 关键标识符 | 证据等级 |
+|------|------|-----------|---------|
+| E1 SSML 子集 | `parseSSML` 白名单（break/prosody/emphasis）+ 属性校验 + 停顿转段落边界 + 韵律整体语速系数，集成进 `speak()` | `parseSSML` / `SSML_ALLOWED` / `SSML_RATE_MAP` / `pushTimeline('ssml', …)` | `已验证` |
+| E2 分块增强 | `splitIntoChunks` 连续换行聚合为段落边界且禁止跨块合并 + 超长串硬切回退英文词边界 + 分块无损 | `splitIntoChunks`（`\n+` 分隔 + `lastIndexOf(' ')` 回退）| `已验证` |
+| P-1 版本真源 | 新增 `VERSION`（4.6.0），`package.json` 对齐 4.6.0，`verify-acceptance.cjs --strict` 新增四处版本一致性硬校验 | `VERSION` / `versionFail` | `已验证` |
+| V5-9 预埋 | `window.__chattts = { version, splitIntoChunks, parseSSML }` | `window.__chattts` | `已验证` |
+
+### 11.2 新增测试（真实复跑）
+
+| 套件 | 命令 | 结果 |
+|------|------|------|
+| 单元 SSML/分块 | `node --test unit-test-ssml.cjs` | **7/7 PASS**（U_SPLIT_1-4 + U_SSML_1-3）|
+| E2E SSML/分块 | `node e2e-test-ssml.cjs` | **4/4 PASS**（T_SPLIT_1 + T_SSML_1-3）|
+| E2E 全量 | `e2e-test.cjs`+sw+cfg+zh+wizard+ssml | **39/39 PASS**（17+3+5+4+6+4）|
+| 单元全量 | `node --test unit-test*.cjs` | **50/50 PASS**（+U_SPLIT/U_SSML 7）|
+| 台账门禁 | `node verify-acceptance.cjs --strict` | **TOTAL 89 PASS** + `VERSION: 4.5.1 · 四处一致` |
+
+### 11.3 真实证据（命令输出摘录）
+
+```
+$ node verify-acceptance.cjs --strict
+E2E: {"e2e-test.cjs":17,...,"e2e-test-ssml.cjs":4} = 39
+UNIT: 50
+VERSION: 4.6.0 · 四处一致（VERSION/package.json/tauri.conf.json/demo.html）
+TOTAL: 89 · 门槛(E2E≥39 且 单元≥50 且 版本一致) PASS
+
+$ node e2e-test-ssml.cjs
+✅ T_SPLIT_1 window.__chattts 公开 API：分块无损 + 段落边界 + SSML 解析
+✅ T_SSML_1 合法 SSML 朗读：解析成功入时间线 + 状态栏无标签泄漏
+✅ T_SSML_2 非法 SSML：给出可读错误且不启动朗读
+✅ T_SSML_3 普通文本（无 SSML）不触发解析路径
+总计: 4 通过, 0 失败 / 4 项
+```
+
+### 11.4 变更文件
+
+- `demo.html`（2726 行，gzip 48336 B）：+E1 parseSSML、+E2 splitIntoChunks 增强、speak() 集成、window.__chattts。
+- `dist/index.html`：同步（CI diff 校验通过）。
+- `unit-test-ssml.cjs` / `e2e-test-ssml.cjs`：新增。
+- `verify-acceptance.cjs`：新增版本一致性硬校验 + 新测试文件入账 + 门槛提升。
+- `VERSION`：新增。`package.json`：version 4.4.0→4.5.1 + 新增 test 脚本。
+- `README.md` / `优化计划/下一步改进指南.md`：文档同步。
+
+### 11.5 剩余待办
+
+- v4.6 其余节点：E3 听写 / E4 可视化 / E5 试听 / E6 语速预设 / E7 i18n / E8 axe / E9 Lighthouse / E10 CSP 收敛。
+- v5：IndexedDB+BM25 数据层、书签续读、真 `.pptx` 导出、公开朗读 API、流式/Worker。
+- 引擎1.5 真机出声仍为外部受限（`待验证`）。

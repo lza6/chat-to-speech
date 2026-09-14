@@ -5,8 +5,8 @@
 'use strict';
 const fs = require('fs');
 
-const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs'];
-const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs', 'unit-test-wizard.cjs'];
+const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs', 'e2e-test-ssml.cjs'];
+const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs', 'unit-test-wizard.cjs', 'unit-test-ssml.cjs'];
 
 function countPattern(src, re) { return (src.match(re) || []).length; }
 
@@ -44,9 +44,26 @@ function main() {
   lines.push(`UNIT: ${unitTotal}`);
   lines.push(`LEDGER: evidence/acceptance-ledger.ndjson`);
   if (docClaims) lines.push(`DOC: ${docClaims.file} 声称 ${docClaims.claimed}`);
+  // P-1 版本真源治理：VERSION 为唯一真源，package.json / tauri.conf.json / demo.html 必须与其一致
+  let versionFail = null;
+  try {
+    const ver = fs.readFileSync('VERSION', 'utf8').trim();
+    const pkgVer = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+    let tauriVer = null;
+    try { tauriVer = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8')).version; } catch (_) {}
+    const demoHasVer = fs.readFileSync('demo.html', 'utf8').indexOf("version: '" + ver + "'") !== -1;
+    const mism = [];
+    if (pkgVer !== ver) mism.push('package.json=' + pkgVer);
+    if (tauriVer !== ver) mism.push('tauri.conf.json=' + tauriVer);
+    if (!demoHasVer) mism.push("demo.html 未含 version: '" + ver + "'");
+    if (mism.length) versionFail = 'VERSION=' + ver + ' 与 ' + mism.join(' / ') + ' 不一致';
+    else lines.push('VERSION: ' + ver + ' · 四处一致（VERSION/package.json/tauri.conf.json/demo.html）');
+  } catch (e) { versionFail = '版本真源检查异常: ' + e.message; }
+
   const total = e2eTotal + unitTotal;
-  const pass = e2eTotal >= 35 && unitTotal >= 39;
-  lines.push(`TOTAL: ${total} · 门槛(E2E≥35 且 单元≥39) ${pass ? 'PASS' : 'FAIL'}`);
+  const pass = e2eTotal >= 39 && unitTotal >= 50 && !versionFail;
+  lines.push(`TOTAL: ${total} · 门槛(E2E≥39 且 单元≥50 且 版本一致) ${pass ? 'PASS' : 'FAIL'}`);
+  if (versionFail) lines.push('VERSION-FAIL: ' + versionFail);
   // strict 语义：对比文档当前版本声称与实测总项数（README/workflow_status 以「78 PASS」为准）
   if (strict && docClaims) {
     const claimed = docClaims.claimed;
