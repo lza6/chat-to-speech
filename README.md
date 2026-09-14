@@ -2,7 +2,7 @@
 
 纯前端单文件静态页，接入 [uncloseai.js](https://uncloseai.com)（公共领域），提供 **AI 对话 + 文本转语音 + 整页朗读** 三条闭环。无需后端、无需注册、无需 API Key。
 
-**当前版本：v4.6.1**（2026-09-15 **E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理 + E8 axe 无障碍门禁 + E9 性能预算** + 引擎1.5 本地中文 WASM + 多端点健康自愈 + 透明操作时间线 + 本地记忆三层/技能结晶 + 场景向导 B3/B4/B5 + 体验增强 P2-4 + 完整 CI/CD + 全量回归 **97 PASS**）
+**当前版本：v4.6.2**（2026-09-15 **第三方脚本非阻塞加载（可用性根因修复）+ E2E 可用性门禁 + E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理 + E8 axe 无障碍门禁 + E9 性能预算** + 引擎1.5 本地中文 WASM + 多端点健康自愈 + 透明操作时间线 + 本地记忆三层/技能结晶 + 场景向导 B3/B4/B5 + 体验增强 P2-4 + 完整 CI/CD + 全量回归 **101 PASS**）
 
 ## 桌面版（免安装 / 安装包，双击即用）
 
@@ -54,7 +54,7 @@ npm run serve          # 监听 8765
 - **公开工具 API 预埋**：`window.__chattts = { version, splitIntoChunks, parseSSML }`（V5-9 页面嵌入 API 的起点）。
 - **E8 axe 无障碍门禁**：新增 `e2e-test-a11y.cjs`（axe-core WCAG2 A/AA 真实扫描，serious/critical 零容忍）。修复两处真实违规：`role="tablist"` 误用（实为 `aria-pressed` 切换按钮，已移除该角色）与 `.ep-down` 对比度不足 3.13:1（新增主题化 `--danger-ink`，浅色 5.4:1 / 深色高对比）。
 - **E9 性能预算**：新增 `e2e-test-perf.cjs`（真实浏览器 PerformanceObserver）——FCP<1.5s、CLS<0.1、gzip<60KB、LCP 回归护栏<8s。**诚实披露**：LCP 元素实测为第三方 `uncloseai.js` widget 的 `.uncloseai-vault-explanation`（远程黑盒，不由本项目控制），故自有内容用 FCP 硬门禁。
-- **测试基线**：新增 `unit-test-ssml.cjs`（7）+ `e2e-test-ssml.cjs`（4）+ `e2e-test-a11y.cjs`（4）+ `e2e-test-perf.cjs`（4），全量回归 **97/97 PASS**。
+- **测试基线**：新增 `unit-test-ssml.cjs`（7）+ `e2e-test-ssml.cjs`（4）+ `e2e-test-a11y.cjs`（4）+ `e2e-test-perf.cjs`（4）+ `e2e-test-avail.cjs`（4，第三方挂起时应用仍可用的回归门禁），全量回归 **101/101 PASS**。
 
 ## v4.5 核心升级（相对 v4.4）
 
@@ -194,7 +194,7 @@ npm run serve          # 监听 8765
 | 单元 记忆三层 | `unit-test-memory.cjs` | B1_1-4 项 | ✅ 4/4 PASS |
 | 单元 场景向导 | `unit-test-wizard.cjs` | WZ_1-6 项 | ✅ 6/6 PASS |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 项 | ✅ 7/7 PASS |
-| **总计** | — | **97 项** | **✅ 97/97 PASS** |
+| **总计** | — | **101 项** | **✅ 101/101 PASS** |
 
 复跑命令：
 
@@ -241,7 +241,7 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 ```
 免费的在线聊天转语音/
 ├── VERSION               # ★ 版本唯一真源（package.json/tauri.conf.json/demo.html 一致性由 verify-acceptance --strict 校验）
-├── demo.html             # ★ 主文件（v4.6.1，引擎1.5 + 多端点健康池 + 时间线 + 记忆 UI + 场景向导 + SSML/分块）
+├── demo.html             # ★ 主文件（v4.6.2，引擎1.5 + 多端点健康池 + 时间线 + 记忆 UI + 场景向导 + SSML/分块 + 非阻塞第三方加载）
 ├── site.webmanifest      # PWA 清单（display:standalone）
 ├── sw.js                 # Service Worker（143 行，同源 NetworkFirst + 跨域 SWR）
 ├── dist/index.html       # 桌面壳 frontendDist（与 demo.html 强制同步，CI diff 校验）
@@ -285,4 +285,4 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 
 ---
 
-*v4.6.1 基于 2026-09-15 真实复跑：E2E 核心 17/17 + SW 3/3 + 配置 5/5 + 引擎1.5 4/4 + 场景向导 6/6 + SSML/分块 4/4 + 无障碍 4/4 + 性能 4/4 = **47/47 PASS**；单元 U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6 + U_SPLIT/U_SSML 7 = **50/50 PASS**；全量回归 **97/97 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**剩余待办**：引擎1.5 真机出声测、E7 i18n / E10 CSP 收敛、v5 数据层（IndexedDB+BM25）与真 .pptx 导出、action 升级 @v5。*
+*v4.6.2 基于 2026-09-15 真实复跑：E2E 核心 17/17 + SW 3/3 + 配置 5/5 + 引擎1.5 4/4 + 场景向导 6/6 + SSML/分块 4/4 + 无障碍 4/4 + 性能 4/4 + 可用性 4/4 = **51/51 PASS**；单元 U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6 + U_SPLIT/U_SSML 7 = **50/50 PASS**；全量回归 **101/101 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**剩余待办**：引擎1.5 真机出声测、E7 i18n / E10 CSP 收敛、v5 数据层（IndexedDB+BM25）与真 .pptx 导出、action 升级 @v5。*

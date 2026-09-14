@@ -543,3 +543,48 @@ $ node e2e-test-ssml.cjs
 - E3/E4/E5/E6/E7/E10（听写/可视化/试听/语速预设/i18n/CSP 收敛）。
 - v5 数据层与真 `.pptx` 导出。
 - LCP 若需真正 < 2.5s，需评估是否能延后/懒加载第三方 `uncloseai.js` widget（影响聊天闭环①，需权衡）。
+
+---
+
+## 13. v4.6.2 落地台账（2026-09-15）—— 第三方脚本非阻塞加载（可用性根因修复）+ E2E 可用性门禁
+
+### 13.1 事故与根因（真实 CI 失败 → 真实代码缺陷）
+
+| 项 | 内容 |
+|------|------|
+| 现象 | main CI 运行 `34876335864`：E2E shard 1 **8 通过 / 9 失败**（T1 page.goto 超时 30s、T5 计数 `0 / 5000`、T6 主题 `["auto","auto","auto"]`、T8 Ctrl+Enter 无效、T11/T15 面板不展开）；Security 作业 `##[error]ERROR: Unexpected exit code [1]` |
+| 定性 | **不是 flaky，是真实缺陷**：本地挂起 `uncloseai.com` 请求完全复现同一组断言（DCL 12s 未触发 / 计数 0 / 主题 null→null） |
+| 根因 A | `<script src="https://uncloseai.com/uncloseai.js" type="module">` 处于应用内联 module **之前**；外部 module 会阻塞其后所有内联 module 执行与 `DOMContentLoaded`。第三方域名慢/被静默丢包时，**整页 JS 均不执行**——连纯离线的「任意文本转语音」核心价值也一并失效（白功能页） |
+| 根因 B | `gitleaks-action` 在 push 事件下执行 `git log --first-parent <before>^..<head>`；`actions/checkout` 默认 `fetch-depth: 1` 使 `<before>^` 不存在 → `fatal: ambiguous argument` → gitleaks 退出码 1 → 安全门禁误报失败 |
+
+### 13.2 修复（均为最小增量，无重构）
+
+- `demo.html`：第三方库改为 **运行时动态注入**（`document.head.appendChild`，`type="module"` 不阻塞解析与 DCL），失败置 `__uncloseaiFailed`，并新增 `LOAD_TIMEOUT_MS = 10000` 与 `waitForApi(60×200ms=12s)` 对齐 —— 超时先置降级位，用户不再无限等待。加载位置从 `</body>` 前上移至 `<head>` 配置之后（更早并行下载）。
+- `.github/workflows/ci.yml`：security 作业 checkout 增 `fetch-depth: 0`；语法检查与 shard 2 纳入 `e2e-test-avail.cjs`。
+- `e2e-test-avail.cjs`（新增 4 项）：`T_AVAIL_1` 第三方挂起时 DCL 预算内、`T_AVAIL_2` 内联 module 仍执行（计数/主题三态循环）、`T_AVAIL_3` 朗读闭环仍走到终态、`T_AVAIL_4` 降级位就位且文案明示离线朗读可用。
+- `verify-acceptance.cjs`：新套件入账，门槛 E2E≥47 → **E2E≥51**。
+
+### 13.3 前后对比（同一挂起场景，真实复现脚本实测）
+
+| 指标 | 修复前 | 修复后 |
+|------|--------|--------|
+| DOMContentLoaded | 12s 未触发（超时） | **230 / 445 / 665ms** |
+| 字符计数 | `0 / 5000` | **`5 / 5000`** |
+| 主题切换 | `null → null`（无响应） | **`auto→dark→light→auto`** |
+| 朗读闭环 | 未触达 | **`🀄 在线不可用，试本地中文引擎…` → 离线出声** |
+
+### 13.4 新增测试（真实复跑，全绿）
+
+| 套件 | 命令 | 结果 |
+|------|------|------|
+| 可用性（新）| `node e2e-test-avail.cjs` | **4/4 PASS** |
+| 性能预算 | `node e2e-test-perf.cjs` | **4/4 PASS**（FCP **320ms** / CLS **0.0036** / gzip **49537 B (48.4KB)** / LCP **5768ms** 第三方主导）|
+| E2E 全量 | 9 套件 | **51/51 PASS** |
+| 单元全量 | 8 套件 | **50/50 PASS** |
+| 台账门禁 | `node verify-acceptance.cjs --strict` | **TOTAL 101 PASS** + `VERSION: 4.6.2 · 四处一致` |
+
+### 13.5 诚实披露 / 剩余待办
+
+- LCP 仍由第三方 widget（`.uncloseai-vault-explanation`）主导（5768ms）：本次改动解决的是**可用性阻塞**（DCL/JS 执行），非第三方首屏绘制时序；若需 <2.5s 须评估该 widget 的懒加载/占位策略。
+- `deploy` 作业的 `if:` 表达式存在运算符优先级问题（`A && B || C` 会使 develop 分支也满足条件），属既有问题，本次未改（避免越权改发布行为），已在指南中登记。
+- E3-E7/E10（听写/可视化/试听/语速预设/i18n/CSP）与 v5 数据层仍未落地。

@@ -320,6 +320,28 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         // 显式声明保留右下角浮动按钮（不依赖库默认值漂移）
         window.UNCLOSEAI_FLOATING_BUTTON = true;
     </script>
+
+    <!-- 非阻塞加载 uncloseai.js（v4.6.2 根因修复） -->
+    <!-- 根因：外部 module script 会阻塞其后所有内联 module 的执行与 DOMContentLoaded。
+         第三方域名慢/被静默丢包时（CI 环境、弱网、离线），整页 JS 全部不执行——
+         连纯离线的"任意文本转语音"核心闭环也一并失效（端到端表现为白功能页）。
+         故改为运行时动态注入：加载不阻塞解析与 DOMContentLoaded，失败/超时
+         仅置 __uncloseaiFailed 降级聊天能力，TTS 直连链路完全不受影响。 -->
+    <script>
+        (function () {
+            var UNCLOSEAI_SRC = 'https://uncloseai.com/uncloseai.js';
+            // 与 waitForApi(60 × 200ms = 12s) 对齐：超时先置失败位，让用户立即看到降级文案
+            var LOAD_TIMEOUT_MS = 10000;
+            var el = document.createElement('script');
+            el.src = UNCLOSEAI_SRC;
+            el.type = 'module';
+            el.onerror = function () { window.__uncloseaiFailed = true; };
+            document.head.appendChild(el);
+            setTimeout(function () {
+                if (!window.uncloseai) window.__uncloseaiFailed = true;
+            }, LOAD_TIMEOUT_MS);
+        })();
+    </script>
 </head>
 <body>
     <nav class="app-nav" aria-label="主导航">
@@ -547,9 +569,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 
     </main>
 
-    <!-- 闭环引擎：一行脚本接入全部能力 -->
-    <script src="https://uncloseai.com/uncloseai.js" type="module"
-            onerror="window.__uncloseaiFailed=true;"></script>
+    <!-- 闭环引擎 uncloseai.js 的加载已上移至 <head> 非阻塞注入（v4.6.2 根因修复） -->
 
     <!-- 页面级交互 -->
     <script type="module">
@@ -912,7 +932,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         // V5-9 预埋：公开只读工具 API（供 E2E 断言 + 后续页面嵌入复用）
         try {
             window.__chattts = Object.assign(window.__chattts || {}, {
-                version: '4.6.1',
+                version: '4.6.2',
                 splitIntoChunks: splitIntoChunks,
                 parseSSML: parseSSML
             });

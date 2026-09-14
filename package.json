@@ -1,7 +1,7 @@
 {
   "name": "online-chat-tts",
   "private": true,
-  "version": "4.6.1",
+  "version": "4.6.2",
   "description": "在线聊天转语音 — 纯前端 TTS 工具（AI 对话 + 文本转语音 + 整页朗读）",
   "scripts": {
     "test:e2e": "node e2e-test.cjs",

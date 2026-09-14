@@ -90,7 +90,7 @@ jobs:
           node -e 'const fs=require("fs");const h=fs.readFileSync("demo.html","utf8");const s=h.match(/<script type="module">([\s\S]*?)<\/script>/i)||h.match(/<script>([\s\S]*?)<\/script>/i);if(!s)process.exit(1);fs.writeFileSync(".ci-check.js",s[1])'
           node --check .ci-check.js
           rm -f .ci-check.js
-          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs e2e-test-ssml.cjs e2e-test-a11y.cjs e2e-test-perf.cjs
+          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs e2e-test-ssml.cjs e2e-test-a11y.cjs e2e-test-perf.cjs e2e-test-avail.cjs
 
       - name: Acceptance ledger gate (verify-acceptance --strict)
         run: node verify-acceptance.cjs --strict
@@ -138,7 +138,7 @@ jobs:
           if [ "${{ matrix.shard }}" = "1" ]; then
             node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-a11y.cjs
           else
-            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-perf.cjs
+            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-perf.cjs && node e2e-test-avail.cjs
           fi
 
       - name: Acceptance ledger update
@@ -151,7 +151,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     steps:
+      # 必须全量历史：gitleaks-action 对 push 事件用 `git log --first-parent <before>^..<head>` 做增量扫描，
+      # 默认 fetch-depth:1 时 <before>^ 不存在 → “fatal: ambiguous argument” → gitleaks 退出码 1 → 门禁误报失败
+      # （2026-09-15 main 运行 34876335864 真实事故）
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
