@@ -215,12 +215,11 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
-      - name: Auto-create GitHub Release (main only, on tag push)
-        if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'feat') || startsWith(github.event.head_commit.message, 'fix')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          generate_release_notes: true
+      # Release 由「tag 推送流程」创建（git push origin vX.Y.Z → gh release create，手写发布说明），
+      # 本作业不再自动建 Release。历史事故：原步骤 `if: A && B || C` 因运算符优先级，在 main 上
+      # 只要提交信息以 feat/fix 开头即触发，并用 `tag_name: v${{ github.run_number }}` 生成
+      # 无意义的 v28 之类垃圾 Release（已删除）。刻意不改为“读 github.event.ref 建 tag Release”，
+      # 因为 softprops action 对已存在的 tag 会「更新」发布说明，会覆盖手写的正式说明。
 
   # PR preview（staging 每 PR 预览）
   preview:

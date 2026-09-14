@@ -618,6 +618,15 @@ $ node e2e-test-ssml.cjs
 | 单元全量 8 套件 | **50/50 PASS** |
 | 台账门禁 | `node verify-acceptance.cjs --strict` → **TOTAL 101 PASS** + `VERSION: 4.6.3 · 四处一致` |
 
-### 14.4 经验沉淀（已写入 skill）
+### 14.4 附带清理：CI 垃圾 Release 根治（对应指南 R-15）
+
+| 项 | 内容 |
+|------|------|
+| 现象 | Releases 列表混入 `v12/v17/v20/v21/v22/v23/v24/v28` 共 **8 个无意义 Release**（0 资产、仅 `**Full Changelog**` 自动链接） |
+| 根因 | `deploy` 作业的自动建 Release 步骤 `if: github.ref == 'refs/heads/main' && startsWith(msg,'feat') \|\| startsWith(msg,'fix')` —— **运算符优先级**使条件退化为「main 上提交信息以 feat/fix 开头即触发」，并用 `tag_name: v${{ github.run_number }}` 生成 run 号伪版本 |
+| 修复 | 移除该步骤（Release 统一由 tag 流程创建，手写发布说明）；**刻意不改为“tags 上自动建 Release”**：softprops 对已存在的 tag 会“更新”发布说明，会覆盖手写的正式说明 |
+| 清理 | 带守卫删除（仅当 `^v[0-9]+$` + 0 资产 + body 含 Full Changelog 才删）：**8 个 Release 与对应远端 tag 已删除**，现 Releases 列表仅含语义版本 v3.0.0 → v4.6.3 |
+
+### 14.5 经验沉淀（已写入 skill）
 
 > **E2E 铁则：每个用例独立 page（或 newContext）+ 显式等应用就绪 + 轮询等目标状态；禁止“固定 sleep 后断言”。** 共享页面 + 固定 sleep 是 flaky 的主要来源，且会把产品缺陷与测试缺陷混为一谈（本次已用“产品侧挂起复现”与“测试侧串扰复现”分别归因）。
