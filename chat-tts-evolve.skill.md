@@ -101,7 +101,7 @@ synthChain(text, voice, speed, myId):
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 | ✅ 7/7 |
 | **合计** | — | **101** | **✅ 101/101** |
 
-> **v4.6.3 新增（2026-09-15）**：E2E 确定性收口 —— `e2e-test-ssml.cjs` 原为 4 用例共享同一 page + 固定 `waitForTimeout` 断言，会被上一用例迟到完成的朗读闭环污染状态栏（本机 3 跑 2 败、CI tag 运行 T_SSML_1 失败）。**铁则：每个用例必须独立 page（或 newContext）+ 显式等 `window.__chattts` 就绪 + 轮询等目标状态，禁用“固定 sleep 后断言”**。连跑 6 次 + 全 shard-2 三 轮 81 项零失败。
+> **v4.6.3 新增（2026-09-15）**：E2E 确定性收口 —— `e2e-test-ssml.cjs` 原为 4 用例共享同一 page + 固定 `waitForTimeout` 断言，会被上一用例迟到完成的朗读闭环污染状态栏（本机 3 跑 2 败、CI tag 运行 T_SSML_1 失败）。**铁则：每个用例必须独立 page（或 newContext）+ 显式等 `window.__chattts` 就绪 + 轮询等目标状态，禁用“固定 sleep 后断言”**。连跑 6 次 + 全 shard-2 三 轮 81 项零失败。同型收口：`e2e-test-a11y.cjs` T_A11Y_2 在 CI 出现一次性焦点失败（第三方浮层初始化期间短暂抢焦点属合法行为）→ 已改为独立 page + 关遮挡弹窗 + 聚焦轮询 3s + 失败输出证据（activeElement/hasFocus/弹窗数/inert）。**改加载方式或新增浮层后必跑 `e2e-test-avail.cjs` + `e2e-test-a11y.cjs`。**
 
 > **v4.6.2 新增（2026-09-15）**：第三方脚本（`uncloseai.com/uncloseai.js`）改为**运行时动态注入**（先前后台 module 会阻塞内联 module 与 `DOMContentLoaded`，第三方慢/断网时整页 JS 均不执行，连离线朗读也失效）；新增 `LOAD_TIMEOUT_MS=10000` 降级位；新增可用性门禁 `e2e-test-avail.cjs`。**改动加载方式 / 引入任何外部 `<script src>` 时必跑 `e2e-test-avail.cjs`。** CI security 作业 checkout 必须 `fetch-depth: 0`（gitleaks 增量扫描需 `<before>^`）。
 
