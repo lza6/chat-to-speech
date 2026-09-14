@@ -2,7 +2,7 @@
 
 纯前端单文件静态页，接入 [uncloseai.js](https://uncloseai.com)（公共领域），提供 **AI 对话 + 文本转语音 + 整页朗读** 三条闭环。无需后端、无需注册、无需 API Key。
 
-**当前版本：v4.6.0**（2026-09-15 **E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理** + 引擎1.5 本地中文 WASM + 多端点健康自愈 + 透明操作时间线 + 本地记忆三层/技能结晶 + 场景向导 B3/B4/B5 + 体验增强 P2-4 + 完整 CI/CD + 全量回归 **89 PASS**）
+**当前版本：v4.6.1**（2026-09-15 **E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理 + E8 axe 无障碍门禁 + E9 性能预算** + 引擎1.5 本地中文 WASM + 多端点健康自愈 + 透明操作时间线 + 本地记忆三层/技能结晶 + 场景向导 B3/B4/B5 + 体验增强 P2-4 + 完整 CI/CD + 全量回归 **97 PASS**）
 
 ## 桌面版（免安装 / 安装包，双击即用）
 
@@ -52,7 +52,9 @@ npm run serve          # 监听 8765
 - **E2 分块增强**：连续换行聚合为段落边界并**禁止跨块合并**；超长无标点串硬切**优先回退英文词边界**（不切断单词）；分块始终保持**无损**（拼接等于原文）。
 - **P-1 版本真源治理**：新增 `VERSION` 唯一真源；`package.json` 对齐 `4.6.0`；`verify-acceptance.cjs --strict` 新增**四处版本一致性硬校验**（VERSION/package.json/tauri.conf.json/demo.html），台账门槛提升到 E2E≥39 且 单元≥50。
 - **公开工具 API 预埋**：`window.__chattts = { version, splitIntoChunks, parseSSML }`（V5-9 页面嵌入 API 的起点）。
-- **测试基线**：新增 `unit-test-ssml.cjs`（7 项）+ `e2e-test-ssml.cjs`（4 项），全量回归 **89/89 PASS**。
+- **E8 axe 无障碍门禁**：新增 `e2e-test-a11y.cjs`（axe-core WCAG2 A/AA 真实扫描，serious/critical 零容忍）。修复两处真实违规：`role="tablist"` 误用（实为 `aria-pressed` 切换按钮，已移除该角色）与 `.ep-down` 对比度不足 3.13:1（新增主题化 `--danger-ink`，浅色 5.4:1 / 深色高对比）。
+- **E9 性能预算**：新增 `e2e-test-perf.cjs`（真实浏览器 PerformanceObserver）——FCP<1.5s、CLS<0.1、gzip<60KB、LCP 回归护栏<8s。**诚实披露**：LCP 元素实测为第三方 `uncloseai.js` widget 的 `.uncloseai-vault-explanation`（远程黑盒，不由本项目控制），故自有内容用 FCP 硬门禁。
+- **测试基线**：新增 `unit-test-ssml.cjs`（7）+ `e2e-test-ssml.cjs`（4）+ `e2e-test-a11y.cjs`（4）+ `e2e-test-perf.cjs`（4），全量回归 **97/97 PASS**。
 
 ## v4.5 核心升级（相对 v4.4）
 
@@ -182,6 +184,8 @@ npm run serve          # 监听 8765
 | E2E 引擎1.5 | `e2e-test-zh.cjs` | T_ZH_1-4 = 4 项 | ✅ 4/4 PASS |
 | E2E 场景向导 | `e2e-test-wizard.cjs` | T_WZ_1-6 = 6 项 | ✅ 6/6 PASS |
 | E2E SSML/分块 | `e2e-test-ssml.cjs` | T_SPLIT_1 + T_SSML_1-3 = 4 项 | ✅ 4/4 PASS |
+| E2E 无障碍 | `e2e-test-a11y.cjs` | T_A11Y_1-4 = 4 项 | ✅ 4/4 PASS |
+| E2E 性能预算 | `e2e-test-perf.cjs` | T_LH_1-4 = 4 项 | ✅ 4/4 PASS |
 | 单元 推理清洗 | `unit-test.cjs` | U_CLEAN 7 项 + 22 样本 | ✅ 7/7 PASS |
 | 单元 并发池 | `unit-test-pool.cjs` | U_POOL 4 项 | ✅ 4/4 PASS |
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 项 | ✅ 8/8 PASS |
@@ -190,7 +194,7 @@ npm run serve          # 监听 8765
 | 单元 记忆三层 | `unit-test-memory.cjs` | B1_1-4 项 | ✅ 4/4 PASS |
 | 单元 场景向导 | `unit-test-wizard.cjs` | WZ_1-6 项 | ✅ 6/6 PASS |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 项 | ✅ 7/7 PASS |
-| **总计** | — | **89 项** | **✅ 89/89 PASS** |
+| **总计** | — | **97 项** | **✅ 97/97 PASS** |
 
 复跑命令：
 
@@ -204,8 +208,10 @@ node e2e-test-cfg.cjs      # 5 项
 node e2e-test-zh.cjs       # 4 项
 node e2e-test-wizard.cjs   # 6 项
 node e2e-test-ssml.cjs     # 4 项（SSML 子集 + 分块）
+node e2e-test-a11y.cjs     # 4 项（axe 无障碍扫描）
+node e2e-test-perf.cjs     # 4 项（性能预算）
 node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs  # 50 项
-node verify-acceptance.cjs --strict   # 台账门禁：E2E≥39 且 单元≥50 且 版本一致
+node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 且 版本一致
 ```
 
 ## v4.1 关键修复（P0/P1）
@@ -235,7 +241,7 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥39 且 单元≥50 
 ```
 免费的在线聊天转语音/
 ├── VERSION               # ★ 版本唯一真源（package.json/tauri.conf.json/demo.html 一致性由 verify-acceptance --strict 校验）
-├── demo.html             # ★ 主文件（v4.6.0，引擎1.5 + 多端点健康池 + 时间线 + 记忆 UI + 场景向导 + SSML/分块）
+├── demo.html             # ★ 主文件（v4.6.1，引擎1.5 + 多端点健康池 + 时间线 + 记忆 UI + 场景向导 + SSML/分块）
 ├── site.webmanifest      # PWA 清单（display:standalone）
 ├── sw.js                 # Service Worker（143 行，同源 NetworkFirst + 跨域 SWR）
 ├── dist/index.html       # 桌面壳 frontendDist（与 demo.html 强制同步，CI diff 校验）
@@ -254,6 +260,8 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥39 且 单元≥50 
 ├── e2e-test-zh.cjs       # E2E 引擎1.5（4 项 T_ZH_1-4）
 ├── e2e-test-wizard.cjs   # E2E 场景向导（6 项 T_WZ_1-6）
 ├── e2e-test-ssml.cjs     # E2E SSML 子集 + 分块（4 项 T_SPLIT_1 + T_SSML_1-3）
+├── e2e-test-a11y.cjs     # E2E 无障碍（4 项 T_A11Y_1-4，axe-core）
+├── e2e-test-perf.cjs     # E2E 性能预算（4 项 T_LH_1-4，FCP/CLS/gzip/LCP）
 ├── unit-test.cjs         # 单元 推理清洗（node:test，U_CLEAN 7 项 + 22 样本夹具）
 ├── unit-test-pool.cjs    # 单元 并发池（U_POOL 4 项 + 429 退避）
 ├── unit-test-cfg.cjs     # 单元 配置中心（U_CFG 8 项 schema/URL/往返校验）
@@ -277,4 +285,4 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥39 且 单元≥50 
 
 ---
 
-*v4.6.0 基于 2026-09-15 真实复跑：E2E 核心 17/17 + SW 3/3 + 配置 5/5 + 引擎1.5 4/4 + 场景向导 6/6 + SSML/分块 4/4 = **39/39 PASS**；单元 U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6 + U_SPLIT/U_SSML 7 = **50/50 PASS**；全量回归 **89/89 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**剩余待办**：引擎1.5 真机出声测（cfg 引擎1.5 自检→朗读中文）、E7 i18n / E8 axe / E9 Lighthouse / E10 CSP 收敛、v5 数据层（IndexedDB+BM25）与真 .pptx 导出、action 升级 @v5。*
+*v4.6.1 基于 2026-09-15 真实复跑：E2E 核心 17/17 + SW 3/3 + 配置 5/5 + 引擎1.5 4/4 + 场景向导 6/6 + SSML/分块 4/4 + 无障碍 4/4 + 性能 4/4 = **47/47 PASS**；单元 U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6 + U_SPLIT/U_SSML 7 = **50/50 PASS**；全量回归 **97/97 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**剩余待办**：引擎1.5 真机出声测、E7 i18n / E10 CSP 收敛、v5 数据层（IndexedDB+BM25）与真 .pptx 导出、action 升级 @v5。*

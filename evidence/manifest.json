@@ -63,8 +63,22 @@
       "name": "版本真源治理（VERSION 唯一真源 + 四处一致性硬校验）",
       "source": "VERSION + verify-acceptance.cjs (versionFail) + package.json",
       "expect": { "require_evidence": ["VERSION 文件存在", "package.json/tauri.conf.json/demo.html 与 VERSION 一致", "不一致时門禁 FAIL"] },
-      "verifiedBy": "node verify-acceptance.cjs --strict → VERSION: 4.6.0 · 四处一致"
+      "verifiedBy": "node verify-acceptance.cjs --strict → VERSION: 4.6.1 · 四处一致"
+    },
+    {
+      "id": "E8",
+      "name": "axe-core 无障碍门禁（WCAG2 A/AA 零严重违规）",
+      "source": "e2e-test-a11y.cjs (@axe-core/playwright) + demo.html (--danger-ink / 移除误用 role=tablist)",
+      "expect": { "require_evidence": ["axe WCAG2 A/AA", "serious+critical === 0", "展开设置面板后再扫 0 违规", "核心控件键盘可达且有可访问名"] },
+      "verifiedBy": "node e2e-test-a11y.cjs → 4/4 PASS（连跑 4 次稳定）"
+    },
+    {
+      "id": "E9",
+      "name": "性能预算（FCP/CLS/gzip/LCP 护栏）",
+      "source": "e2e-test-perf.cjs (PerformanceObserver)",
+      "expect": { "require_evidence": ["FCP < 1500ms", "CLS < 0.1", "gzip < 60KB", "LCP 回归护栏 < 8s（含第三方 widget）"] },
+      "verifiedBy": "node e2e-test-perf.cjs → 4/4 PASS（FCP 528ms / CLS 0 / gzip 47.9KB）"
     }
   ],
-  "notes": "Phase B：A1+A2+A3+B1+B2 此前已落地；B3+B4+B5 场景向导落地；2026-09-15 v4.6 起手：E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理，全套回归 89 项全绿（39 E2E + 50 单元）。README/workflow_status/指南已同步。"
+  "notes": "Phase B：A1+A2+A3+B1+B2 此前已落地；B3+B4+B5 场景向导落地；2026-09-15 v4.6.0：E1 SSML 子集 + E2 分块增强 + P-1 版本真源治理；v4.6.1：E8 axe 无障碍门禁（修复 role=tablist 误用 + .ep-down 对比度）+ E9 性能预算。全套回归 97 项全绿（47 E2E + 50 单元）。README/workflow_status/指南已同步。"
 }

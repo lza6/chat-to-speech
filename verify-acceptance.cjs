@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 
-const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs', 'e2e-test-ssml.cjs'];
+const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs', 'e2e-test-ssml.cjs', 'e2e-test-a11y.cjs', 'e2e-test-perf.cjs'];
 const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs', 'unit-test-wizard.cjs', 'unit-test-ssml.cjs'];
 
 function countPattern(src, re) { return (src.match(re) || []).length; }
@@ -61,8 +61,8 @@ function main() {
   } catch (e) { versionFail = '版本真源检查异常: ' + e.message; }
 
   const total = e2eTotal + unitTotal;
-  const pass = e2eTotal >= 39 && unitTotal >= 50 && !versionFail;
-  lines.push(`TOTAL: ${total} · 门槛(E2E≥39 且 单元≥50 且 版本一致) ${pass ? 'PASS' : 'FAIL'}`);
+  const pass = e2eTotal >= 47 && unitTotal >= 50 && !versionFail;
+  lines.push(`TOTAL: ${total} · 门槛(E2E≥47 且 单元≥50 且 版本一致) ${pass ? 'PASS' : 'FAIL'}`);
   if (versionFail) lines.push('VERSION-FAIL: ' + versionFail);
   // strict 语义：对比文档当前版本声称与实测总项数（README/workflow_status 以「78 PASS」为准）
   if (strict && docClaims) {

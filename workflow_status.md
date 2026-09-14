@@ -492,6 +492,54 @@ $ node e2e-test-ssml.cjs
 
 ### 11.5 剩余待办
 
-- v4.6 其余节点：E3 听写 / E4 可视化 / E5 试听 / E6 语速预设 / E7 i18n / E8 axe / E9 Lighthouse / E10 CSP 收敛。
+- v4.6 其余节点：E3 听写 / E4 可视化 / E5 试听 / E6 语速预设 / E7 i18n / E10 CSP 收敛。
 - v5：IndexedDB+BM25 数据层、书签续读、真 `.pptx` 导出、公开朗读 API、流式/Worker。
 - 引擎1.5 真机出声仍为外部受限（`待验证`）。
+
+---
+
+## 12. v4.6.1 落地台账（2026-09-15）—— E8 无障碍门禁 + E9 性能预算
+
+### 12.1 交付节点
+
+| 节点 | 内容 | 证据 |
+|------|------|------|
+| E8 axe 无障碍 | 新增 `e2e-test-a11y.cjs`（@axe-core/playwright，WCAG2 A/AA，serious/critical 零容忍）| `已验证` |
+| E8 修复① | 移除数据面板误用的 `role="tablist"`（实为 `aria-pressed` 切换按钮）—— 修复 critical `aria-required-children` | `已验证` |
+| E8 修复② | 新增主题化 `--danger-ink`（浅色 #b91c1c / 深色 #fca5a5），修复 `.ep-down` 对比度 3.13:1 → 5.4:1（含 `.tl-err` / `.wz-page-overflow` 同类隐患）| `已验证` |
+| E8 稳定性 | T_A11Y_2 键盘聚焦改为页内同步执行，消除 headless 跨进程焦点抖动（连跑 4 次全绿）| `已验证` |
+| E9 性能预算 | 新增 `e2e-test-perf.cjs`（PerformanceObserver）—— FCP/CLS/gzip/LCP 四项 | `已验证` |
+
+### 12.2 真实指标（浏览器实采）
+
+| 指标 | 实测 | 门槛 | 结果 |
+|------|------|------|------|
+| FCP（自有内容首屏）| **528ms** | < 1500ms | ✅ |
+| CLS | **0.0000** | < 0.1 | ✅ |
+| demo.html gzip | **49042 B (47.9KB)** | < 60KB | ✅ |
+| LCP（含第三方 widget）| **~5.9s** | < 8s 护栏 | ✅（诚实披露：LCP 元素为第三方 `uncloseai.js` 的 `.uncloseai-vault-explanation`，不由本项目控制）|
+| longtasks | 1 | ≤ 30 | ✅ |
+
+### 12.3 新增测试（真实复跑）
+
+| 套件 | 命令 | 结果 |
+|------|------|------|
+| 无障碍 | `node e2e-test-a11y.cjs` | **4/4 PASS**（连跑 4 次稳定）|
+| 性能预算 | `node e2e-test-perf.cjs` | **4/4 PASS** |
+| E2E 全量 | 8 套件 | **47/47 PASS** |
+| 单元全量 | 8 套件 | **50/50 PASS** |
+| 台账门禁 | `node verify-acceptance.cjs --strict` | **TOTAL 97 PASS** + `VERSION: 4.6.1 · 四处一致` |
+
+### 12.4 变更文件
+
+- `demo.html` + `dist/index.html`（同步）：`--danger-ink` 主题 token、`.ep-down`/`.tl-err`/`.wz-page-overflow` 对比度修复、移除 `role="tablist"`、`window.__chattts.version` → 4.6.1。
+- `e2e-test-a11y.cjs` / `e2e-test-perf.cjs`：新增。
+- `verify-acceptance.cjs`：新测试入账 + 门槛 E2E≥47。
+- `VERSION` / `package.json` / `src-tauri/tauri.conf.json`：版本 → 4.6.1；新增 test 脚本。
+- `README.md` / `chat-tts-evolve.skill.md` / `evidence/manifest.json` / 本文件：文档同步。
+
+### 12.5 剩余待办
+
+- E3/E4/E5/E6/E7/E10（听写/可视化/试听/语速预设/i18n/CSP 收敛）。
+- v5 数据层与真 `.pptx` 导出。
+- LCP 若需真正 < 2.5s，需评估是否能延后/懒加载第三方 `uncloseai.js` widget（影响聊天闭环①，需权衡）。

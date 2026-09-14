@@ -24,7 +24,7 @@ description: 在线聊天转语音项目的持续演进工作流。新增 API/�
 4. **编码前必查** `优化计划/下一步改进指南-v4.2升级版.md`（修正指令：哪些旧结论已死、v4.2 按什么顺序做）→ 再查 `优化计划/下一步改进指南.md`（重写版，v4.2→v5→v6+ 全量节点定义）的"执行顺序与依赖图"。**历史残留**：`下一步改进指南-v3基线归档.md` / `-v4.1基线归档.md` 为历史参考，不作为依据。
 5. **编码后必跑** 下方"验证命令"清单，真实通过才能声称完成。
 
-## 项目当前状态基线（2026-09-15 v4.6.0 落地 · 89/89 PASS）
+## 项目当前状态基线（2026-09-15 v4.6.1 落地 · 97/97 PASS）
 
 > **过时判据**：若 `demo.html` / `e2e-test*.cjs` / `workflow_status.md` / `优化计划/*.md` 的 mtime 晚于上方日期，或 git log 有新 commit，本节可能过时，需先核验再采信。
 
@@ -95,8 +95,12 @@ synthChain(text, voice, speed, myId):
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 | ✅ 8/8 |
 | 单元 中文引擎 | `unit-test-zh.cjs` | U_ZH 9（音素器+voice 表+WAV 四分支+CJK 判定）| ✅ 9/9 |
 | E2E SSML/分块 | `e2e-test-ssml.cjs` | T_SPLIT_1 + T_SSML_1-3 = 4 | ✅ 4/4 |
+| E2E 无障碍 | `e2e-test-a11y.cjs` | T_A11Y_1-4 = 4 | ✅ 4/4 |
+| E2E 性能预算 | `e2e-test-perf.cjs` | T_LH_1-4 = 4 | ✅ 4/4 |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 | ✅ 7/7 |
-| **合计** | — | **89** | **✅ 89/89** |
+| **合计** | — | **97** | **✅ 97/97** |
+
+> **v4.6.1 新增（2026-09-15）**：E8 axe 无障碍门禁（`e2e-test-a11y.cjs`，serious/critical 零容忍；修复 `role=tablist` 误用 + `.ep-down` 对比度 → 新增 `--danger-ink` 主题 token）；E9 性能预算（`e2e-test-perf.cjs`，FCP<1.5s / CLS<0.1 / gzip<60KB / LCP<8s 护栏，LCP 由第三方 widget 主导）。改颜色 token 或新增面板时必跑 `e2e-test-a11y.cjs`；改体积/首屏时必跑 `e2e-test-perf.cjs`。
 
 > **v4.5.1 新增（2026-09-15）**：E1 SSML 子集（`parseSSML` 白名单 break/prosody/emphasis + 属性校验 + speak() 集成 + `pushTimeline('ssml')`）；E2 分块增强（段落边界不合并 + 英文词边界回退 + 无损）；P-1 版本真源 `VERSION`（四处一致性由 `verify-acceptance --strict` 硬校验）；`window.__chattts = { version, splitIntoChunks, parseSSML }`。改分块/SSML 时必跑 `unit-test-ssml.cjs` + `e2e-test-ssml.cjs`，且内联版与测试拷贝必须同步。
 
