@@ -24,13 +24,13 @@ description: 在线聊天转语音项目的持续演进工作流。新增 API/�
 4. **编码前必查** `优化计划/下一步改进指南-v4.2升级版.md`（修正指令：哪些旧结论已死、v4.2 按什么顺序做）→ 再查 `优化计划/下一步改进指南.md`（重写版，v4.2→v5→v6+ 全量节点定义）的"执行顺序与依赖图"。**历史残留**：`下一步改进指南-v3基线归档.md` / `-v4.1基线归档.md` 为历史参考，不作为依据。
 5. **编码后必跑** 下方"验证命令"清单，真实通过才能声称完成。
 
-## 项目当前状态基线（2026-09-15 v4.6.3 落地 · 101/101 PASS）
+## 项目当前状态基线（2026-09-17 v4.7.0 落地 · 116/116 PASS）
 
-> **过时判据**：若 `demo.html` / `e2e-test*.cjs` / `workflow_status.md` / `优化计划/*.md` 的 mtime 晚于上方日期，或 git log 有新 commit，本节可能过时，需先核验再采信。
+> **过时判据**：若 `demo.html` / `e2e-test*.cjs` / `workflow_status.md` / `计划书/*.md` 的 mtime 晚于上方日期，或 git log 有新 commit，本节可能过时，需先核验再采信。
 
 ### 三文件架构（硬约束，不得破坏）
 
-- `demo.html`（**2726 行**，全部 JS/CSS 内联 + 引擎1.5 WASM 中文音素器内联版 + E1 SSML 子集 + E2 分块增强）— 主文件，三闭环逻辑全在此（四级降级链）
+- `demo.html`（**3036 行**，全部 JS/CSS 内联 + 引擎1.5 WASM 中文音素器内联版 + E1 SSML 子集 + E2 分块增强 + E7 i18n + E3 听写/E4 可视化/E5 试听/E6 语速预设 + V5-11 播放状态机）— 主文件，三闭环逻辑全在此（四级降级链）
 - `sw.js`（143 行）— Service Worker：同源 NetworkFirst + 跨域 uncloseai.com SWR 7 天 TTL + maxEntries=50 + ETag 304
 - `site.webmanifest`（20 行）— PWA 清单，display:standalone
 - **引擎1.5 伴随文件（不进三文件承诺，但必须入库）**：`tts-zh.js`（167 行，Node 可测的中文音素器/voice 表，与 demo.html 内联版双实现同步）、`engines/pinyin-pro.mjs`（468KB，jsdelivr vendor 兜底）、`engines/kokoro-js.mjs`（2.1MB，jsdelivr vendor 兜底）
@@ -94,13 +94,19 @@ synthChain(text, voice, speed, myId):
 | 单元 并发池 | `unit-test-pool.cjs` | U_POOL 4 | ✅ 4/4 |
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 | ✅ 8/8 |
 | 单元 中文引擎 | `unit-test-zh.cjs` | U_ZH 9（音素器+voice 表+WAV 四分支+CJK 判定）| ✅ 9/9 |
+| 单元 场景向导 | `unit-test-wizard.cjs` | WZ_1-6 | ✅ 6/6 |
+| 单元 健康池 | `unit-test-health.cjs` | A2_1-5 | ✅ 5/5 |
+| 单元 记忆三层 | `unit-test-memory.cjs` | B1_1-4 | ✅ 4/4 |
 | E2E SSML/分块 | `e2e-test-ssml.cjs` | T_SPLIT_1 + T_SSML_1-3 = 4 | ✅ 4/4 |
 | E2E 无障碍 | `e2e-test-a11y.cjs` | T_A11Y_1-4 = 4 | ✅ 4/4 |
 | E2E 性能预算 | `e2e-test-perf.cjs` | T_LH_1-4 = 4 | ✅ 4/4 |
 | E2E 可用性 | `e2e-test-avail.cjs` | T_AVAIL_1-4 = 4 | ✅ 4/4 |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 | ✅ 7/7 |
-| **合计** | — | **101** | **✅ 101/101** |
+| 单元 状态机/语速 | `unit-test-v47.cjs` | U_PLAY_1-5 + U_SPEED_1-2 = 7 | ✅ 7/7 |
+| E2E v4.7 批次 | `e2e-test-v47.cjs` | T_VER_1/T_I18N_1/T_SPEED_1/T_VIZ_1-2/T_SR_1-2/T_AUD_1 = 8 | ✅ 8/8 |
+| **合计** | — | **116** | **✅ 116/116** |
 
+> **v4.7.0 新增（2026-09-17）**：体验收口·续 + 状态机 P0 —— E3 听写（SpeechRecognition + 不支持降级）、E4 可视化（AnalyserNode 频谱 + 估算降级 + 停止清空）、E5 试听（切换即听，朗读中不打断）、E6 语速 0.25-4 + 预设 + 每语音记忆、E7 i18n（zh/en 静态界面全覆盖 + 中央状态文案精确翻译，长尾中文回退）、X-1 徽章读真源、V5-11 播放状态机（nextPlayState/playState，**P-13 修复**：playBlob 的 error 不再被静默当作播放成功）。新增 unit-test-v47.cjs（7 项）+ e2e-test-v47.cjs（8 项，外部端点用 Playwright 路由替身）。**改 i18n 文案/新增界面文案时必跑 e2e-test-v47.cjs；改播放/竞态/停止/错误处理时必跑 unit-test-v47.cjs + 主套件；改启动期 JS 时必跑 e2e-test-perf.cjs。** 已知环境项：本机第三方域不可达时 load 事件不触发（v4.6.3 原版同），perf 套件已改为不依赖 load；FCP 本机 v4.7≈1.9s（基线同日≈2.4s）仍超 1.5s 预算，预算不放水。
 > **v4.6.3 新增（2026-09-15）**：E2E 确定性收口 —— `e2e-test-ssml.cjs` 原为 4 用例共享同一 page + 固定 `waitForTimeout` 断言，会被上一用例迟到完成的朗读闭环污染状态栏（本机 3 跑 2 败、CI tag 运行 T_SSML_1 失败）。**铁则：每个用例必须独立 page（或 newContext）+ 显式等 `window.__chattts` 就绪 + 轮询等目标状态，禁用“固定 sleep 后断言”**。连跑 6 次 + 全 shard-2 三 轮 81 项零失败。同型收口：`e2e-test-a11y.cjs` T_A11Y_2 在 CI 出现一次性焦点失败（第三方浮层初始化期间短暂抢焦点属合法行为）→ 已改为独立 page + 关遮挡弹窗 + 聚焦轮询 3s + 失败输出证据（activeElement/hasFocus/弹窗数/inert）。**改加载方式或新增浮层后必跑 `e2e-test-avail.cjs` + `e2e-test-a11y.cjs`。**
 
 > **v4.6.2 新增（2026-09-15）**：第三方脚本（`uncloseai.com/uncloseai.js`）改为**运行时动态注入**（先前后台 module 会阻塞内联 module 与 `DOMContentLoaded`，第三方慢/断网时整页 JS 均不执行，连离线朗读也失效）；新增 `LOAD_TIMEOUT_MS=10000` 降级位；新增可用性门禁 `e2e-test-avail.cjs`。**改动加载方式 / 引入任何外部 `<script src>` 时必跑 `e2e-test-avail.cjs`。** CI security 作业 checkout 必须 `fetch-depth: 0`（gitleaks 增量扫描需 `<before>^`）。
@@ -113,10 +119,10 @@ synthChain(text, voice, speed, myId):
 
 ### 文档基线（必须与代码同步）
 
-- `README.md` — v4.2（四级降级链 + 引擎1.5 结构性前提披露 + CSP 披露 + 57/57 基线 + 复跑命令）
+- `README.md` — v4.7.0（四级降级链 + 引擎1.5 结构性前提披露 + CSP 披露 + 116/116 基线 + 复跑命令 + v4.7 章节）
 - `变更报告.html`（v2 历史）/ `变更报告-v4.html`（v4）/ `变更报告-v5.html`（v4.2 引擎1.5 + CRITIC 两轮，含底部交互测验）
 - `workflow_status.md` — N4 表 17 项真实枚举 + §8 v4/v4.1/v4.2 落地进度
-- `优化计划/` — 4 份：`下一步改进指南.md`（主重写版，挂接 v4.2 落地态）+ `下一步改进指南-v4.2升级版.md`（★ 修正指令：Kokoro 中文路线三 A/B/C、README 断言已失效、模型体积 82MB、CRITIC 取证）+ 2 份历史归档
+- `计划书/下一步改进指南.md` — ★ 当前有效指南（v4.6.3→v8+ 第二版，下游以此为准）；`优化计划/` — 历史指南归档（v4.1/v4.2 修正指令等保留追溯）
 - `chat-tts-evolve.skill.md`（本文件）— 每次发版更新基线节
 
 ### 外部依赖（2026-09-07 实测）

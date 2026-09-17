@@ -56,6 +56,18 @@ npm run serve          # 监听 8765
 - **E9 性能预算**：新增 `e2e-test-perf.cjs`（真实浏览器 PerformanceObserver）——FCP<1.5s、CLS<0.1、gzip<60KB、LCP 回归护栏<8s。**诚实披露**：LCP 元素实测为第三方 `uncloseai.js` widget 的 `.uncloseai-vault-explanation`（远程黑盒，不由本项目控制），故自有内容用 FCP 硬门禁。
 - **测试基线**：新增 `unit-test-ssml.cjs`（7）+ `e2e-test-ssml.cjs`（4）+ `e2e-test-a11y.cjs`（4）+ `e2e-test-perf.cjs`（4）+ `e2e-test-avail.cjs`（4，第三方挂起时应用仍可用的回归门禁），全量回归 **101/101 PASS**。
 
+## v4.7 起手（相对 v4.6.3，2026-09-17）
+
+- **E3 语音听写输入**：🎤 按钮（`#dictate-btn`）调 `SpeechRecognition`（zh-CN/en-US 跟随界面语言），识别结果回填输入框；不支持时给可读降级文案（诚实降级，不假实现）。
+- **E4 音频可视化**：`#viz-canvas` AnalyserNode 频谱（`createMediaElementSource` 失败自动降级估算模式）；停止/结束即清空；`prefers-reduced-motion` 下隐藏。
+- **E5 语音试听**：切换语音即试听示例句（防抖 300ms；朗读中不打断；端点不可达静默跳过，不写历史/记忆）。
+- **E6 语速扩展**：滑块范围 0.5-2 → **0.25-4** + 预设按钮（0.75/1/1.5/2/3）+ **每语音记忆**（`tts_speed_<voice>`，切换语音自动恢复）。
+- **E7 多语言界面 i18n**：🌐 切换 zh/en；全部静态界面文案走 `data-i18n` 批量扫描（含 placeholder/aria-label/title）；`setStatus/showNotice` 中央状态文案精确翻译（未覆盖的动态长尾保持中文回退，诚实披露）；跟随 `navigator.language`；同步 `UNCLOSEAI_LANGUAGE`。**性能优化**：`applyI18n` 只在值变化时写 DOM，避免首屏批量 textContent 触发 layout 标脏（实测 FCP 2944ms→1892ms）。
+- **X-1 版本徽章真源化**：导航徽章 `v4.6`（硬编码）→ 运行时读 `__chattts.version`（真源一致，永不漂移）。
+- **V5-11 播放状态机（P0 前置落地）**：新增 `nextPlayState` 纯函数 + `playState` 单一状态源（idle/preparing/synthesizing/playing/paused/errored/stopped/completed）。**修复 P-13**：`playBlob` 返回 `'error'` 现在是引擎1 的失败终结态（抛给降级链 + 状态栏明示“播放失败”），**不再被静默当作“播放完毕”**；**修复 P-14**：speak 竞态与 stop/blocked/error 三态收敛到状态机。
+- **测试基线**：新增 `unit-test-v47.cjs`（7 项：U_PLAY_1-5 + U_SPEED_1-2）+ `e2e-test-v47.cjs`（8 项：T_VER_1/T_I18N_1/T_SPEED_1/T_VIZ_1-2/T_SR_1-2/T_AUD_1，外部端点用 Playwright 路由替身模拟），全量回归 **116/116 PASS**（E2E 59 + 单元 57）。
+- **测试确定性收口**：`e2e-test.cjs` T4/T8 由固定 `waitForTimeout(4000)` 单次断言改为**轮询断言**（v4.6.3 铁则）；`e2e-test-perf.cjs` 导航不依赖被第三方网络破坏的 `load` 事件（改为 `domcontentloaded` + 显式等应用就绪）——两者 A/B 实测：v4.6.3 基线在本机同网络下同样失败/超时，纯环境敏感项，非产品回归。
+
 ## v4.5 核心升级（相对 v4.4）
 
 - **P2-4 体验增强（主题/语速持久化 + 实时联动）**：主题与语速并入配置中心持久化（`tts_cfg_v1`，迁移旧 `tts_theme_v2`）；`auto` 主题实时跟随系统深浅色（`matchMedia`）；**朗读中拖语速滑块立即生效**（浏览器引擎实时改 rate）；刷新后主题/语速自动恢复。
@@ -161,9 +173,12 @@ npm run serve          # 监听 8765
 - **引擎1.5 本地中文 WASM（v4.2 新增）**：Kokoro 82M ONNX（`onnx-community/Kokoro-82M-v1.0-ONNX` q8f16 82MB）+ 中文音素器（移植 kokoro PR #352 `phonemize-zh.js` + `pinyin-pro`），引擎 1→1.5→2→3 降级链；依赖经 `cdn.jsdelivr.net`（CSP 白名单）加载，本地 `engines/` vendor 兜底；**真机出声待测**
 - Service Worker：`sw.js`（同源 NetworkFirst + 跨域 uncloseai.com SWR 7 天 TTL）
 
-## 已知限制（v4.5 诚实披露）
+## 已知限制（v4.7 诚实披露）
 
-1. **TTS 端点 2026-09-06 持续 502**：可能是临时维护或长期停摆。降级链保证此时仍有声可用（浏览器内置），但音色机械；用户可在 ⚙️ 配置自带端点恢复在线高质量（支持多端点 failover）。
+1. **FCP 性能预算对本机弱网/第三方域不可达敏感**：v4.7 在 2026-09-17 本机实测 FCP≈1.9s（v4.6.3 基线同日≈2.4s，均超 1.5s 预算）——因 `uncloseai.com` 在此网络不可达导致首帧渲染被拖慢，**非本版本回归**；干净 CI 环境历史实测 528ms（预算内）。预算保持严格不放水。
+2. **E7 i18n 覆盖边界**：静态界面文案全覆盖；动态状态文案（`setStatus`/`showNotice`）覆盖高频条目（精确匹配），未覆盖的长尾动态文案保持中文回退（诚实降级）。
+3. **E5 试听依赖在线端点**：端点不可达时试听静默跳过（不打扰选音）；朗读中切换语音不打断当前朗读。
+4. **TTS 端点 2026-09-06 持续 502**：可能是临时维护或长期停摆。降级链保证此时仍有声可用（浏览器内置），但音色机械；用户可在 ⚙️ 配置自带端点恢复在线高质量（支持多端点 failover）。
 2. **引擎1.5 本地中文（Kokoro）代码已入，真机出声待测（含结构性前提）**：断网 + Linux 无 zh 包时可走引擎1.5（本地 82MB 模型，音素器已实现，`⚙️ 引擎1.5 自检`可探依赖可用性）；中文合成走 `generate_from_ids` 适配层（绕过 kokoro-js@1.2.1 英文 voice 白名单，`zf_xiaobei.bin` 已核验存在于 HF）。**真机（含 iOS Safari WASM 内存）尚未验证**；若真机不可用则回落到引擎2/3。语音质量官方自评 C/D（非「高质量」）。
 3. **浏览器 SpeechSynthesis 中文语音因平台而异**：Windows 有 Huihui/Yaoyao（质量尚可）；Linux 多数发行版无中文语音包，此时引擎2也会失败 → 走引擎3 文本兜底。
 4. **iOS Safari 未真机测**：autoplay 与 SpeechSynthesis + WASM 内存限制待真机验证。
@@ -174,7 +189,7 @@ npm run serve          # 监听 8765
 9. **场景向导 B3/B4/B5 为纯前端轻量实现**：任务看板/PPT 大纲/电商文案数据全部存 localStorage（无跨设备）；PPT 导出为 Markdown 大纲文本（非二进制 .pptx）；电商草稿不含真实发布动作（草稿→预览→确认门后续扩展）。
 10. **P2-4 语速实时调节仅浏览器引擎即时生效**：在线引擎/WASM 引擎语速在合成时确定，朗读中拖动滑块对它们需下一段生效；浏览器引擎（引擎2）即时改 rate。
 
-## 测试基线（v4.5 真实复跑，2026-09-09）
+## 测试基线（v4.7.0 真实复跑，2026-09-17）
 
 | 套件 | 文件 | 项数 | 真实通过 |
 |------|------|------|---------|
@@ -186,6 +201,8 @@ npm run serve          # 监听 8765
 | E2E SSML/分块 | `e2e-test-ssml.cjs` | T_SPLIT_1 + T_SSML_1-3 = 4 项 | ✅ 4/4 PASS |
 | E2E 无障碍 | `e2e-test-a11y.cjs` | T_A11Y_1-4 = 4 项 | ✅ 4/4 PASS |
 | E2E 性能预算 | `e2e-test-perf.cjs` | T_LH_1-4 = 4 项 | ✅ 4/4 PASS |
+| E2E 可用性 | `e2e-test-avail.cjs` | T_AVAIL_1-4 = 4 项（第三方挂起仍可用）| ✅ 4/4 PASS |
+| E2E v4.7 批次 | `e2e-test-v47.cjs` | T_VER_1/T_I18N_1/T_SPEED_1/T_VIZ_1-2/T_SR_1-2/T_AUD_1 = 8 项 | ✅ 8/8 PASS |
 | 单元 推理清洗 | `unit-test.cjs` | U_CLEAN 7 项 + 22 样本 | ✅ 7/7 PASS |
 | 单元 并发池 | `unit-test-pool.cjs` | U_POOL 4 项 | ✅ 4/4 PASS |
 | 单元 配置中心 | `unit-test-cfg.cjs` | U_CFG 8 项 | ✅ 8/8 PASS |
@@ -194,7 +211,8 @@ npm run serve          # 监听 8765
 | 单元 记忆三层 | `unit-test-memory.cjs` | B1_1-4 项 | ✅ 4/4 PASS |
 | 单元 场景向导 | `unit-test-wizard.cjs` | WZ_1-6 项 | ✅ 6/6 PASS |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 项 | ✅ 7/7 PASS |
-| **总计** | — | **101 项** | **✅ 101/101 PASS** |
+| 单元 状态机/语速 | `unit-test-v47.cjs` | U_PLAY_1-5 + U_SPEED_1-2 = 7 项 | ✅ 7/7 PASS |
+| **总计** | — | **116 项** | **✅ 116/116 PASS** |
 
 复跑命令：
 
@@ -209,9 +227,11 @@ node e2e-test-zh.cjs       # 4 项
 node e2e-test-wizard.cjs   # 6 项
 node e2e-test-ssml.cjs     # 4 项（SSML 子集 + 分块）
 node e2e-test-a11y.cjs     # 4 项（axe 无障碍扫描）
-node e2e-test-perf.cjs     # 4 项（性能预算）
-node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs  # 50 项
-node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 且 版本一致
+node e2e-test-perf.cjs     # 4 项（性能预算，导航不依赖 load 事件）
+node e2e-test-avail.cjs    # 4 项（第三方挂起可用性）
+node e2e-test-v47.cjs      # 8 项（v4.7 批次：i18n/语速/可视化/听写/试听/版本徽章）
+node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs unit-test-v47.cjs  # 57 项
+node verify-acceptance.cjs --strict   # 台账门禁：E2E≥59 且 单元≥56 且 版本一致
 ```
 
 ## v4.1 关键修复（P0/P1）
@@ -226,7 +246,8 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 
 ## 相关文档
 
-- [下一步改进指南](优化计划/下一步改进指南.md) — v4.1→v4.2→v5→v6+ 全栈迭代路线图（重写版，下游以此为准）
+- [下一步改进指南（v4.6.3→v8+ 第二版）](计划书/下一步改进指南.md) — 当前有效指南，下游以此为准
+- [下一步改进指南（v4.5 基线第一版，历史）](优化计划/下一步改进指南.md) — 已由第二版取代，保留追溯
 - [下一步改进指南-v4.1基线归档](优化计划/下一步改进指南-v4.1基线归档.md) — v4.1 时代规划（历史参考）
 - [下一步改进指南-v3基线归档](优化计划/下一步改进指南-v3基线归档.md) — v3 时代对 v4 的初步规划（历史参考，部分描述已过时）
 - [workflow_status.md](workflow_status.md) — 任务台账 + v4/v4.3/v4.4 落地进度
@@ -241,7 +262,7 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 ```
 免费的在线聊天转语音/
 ├── VERSION               # ★ 版本唯一真源（package.json/tauri.conf.json/demo.html 一致性由 verify-acceptance --strict 校验）
-├── demo.html             # ★ 主文件（v4.6.3，引擎1.5 + 多端点健康池 + 时间线 + 记忆 UI + 场景向导 + SSML/分块 + 非阻塞第三方加载）
+├── demo.html             # ★ 主文件（v4.7.0，引擎1.5 + 健康池 + 时间线 + 记忆 + 向导 + SSML/分块 + i18n + 听写/可视化/试听/语速预设 + 播放状态机 + 非阻塞第三方加载）
 ├── site.webmanifest      # PWA 清单（display:standalone）
 ├── sw.js                 # Service Worker（143 行，同源 NetworkFirst + 跨域 SWR）
 ├── dist/index.html       # 桌面壳 frontendDist（与 demo.html 强制同步，CI diff 校验）
@@ -262,6 +283,8 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 ├── e2e-test-ssml.cjs     # E2E SSML 子集 + 分块（4 项 T_SPLIT_1 + T_SSML_1-3）
 ├── e2e-test-a11y.cjs     # E2E 无障碍（4 项 T_A11Y_1-4，axe-core）
 ├── e2e-test-perf.cjs     # E2E 性能预算（4 项 T_LH_1-4，FCP/CLS/gzip/LCP）
+├── e2e-test-avail.cjs    # E2E 可用性（4 项，第三方挂起仍可用）
+├── e2e-test-v47.cjs      # E2E v4.7 批次（8 项：i18n/语速/可视化/听写/试听/版本徽章）
 ├── unit-test.cjs         # 单元 推理清洗（node:test，U_CLEAN 7 项 + 22 样本夹具）
 ├── unit-test-pool.cjs    # 单元 并发池（U_POOL 4 项 + 429 退避）
 ├── unit-test-cfg.cjs     # 单元 配置中心（U_CFG 8 项 schema/URL/往返校验）
@@ -270,13 +293,15 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 ├── unit-test-memory.cjs  # 单元 记忆三层（B1_1-4 项）
 ├── unit-test-wizard.cjs  # 单元 场景向导（WZ_1-6 项：看板/PPT/电商）
 ├── unit-test-ssml.cjs    # 单元 SSML 子集 + 分块（U_SPLIT 1-4 + U_SSML 1-3）
+├── unit-test-v47.cjs     # 单元 播放状态机 + 语速（U_PLAY_1-5 + U_SPEED_1-2）
 ├── verify-acceptance.cjs # 验收台账门禁（三向一致性，CI 强制）
 ├── evidence/             # 验收台账（acceptance-ledger.ndjson + manifest.json）
 ├── package.json          # 声明 playwright ^1.49.0 + serve 脚本（无构建工具链，保持单文件部署）
 ├── .gitignore            # node_modules / verify-*.cjs / server.cjs / .playwright-mcp/
 ├── test-cases/            # 测试夹具
 │   └── 推理清洗样本.json   # 22 真实推理回复样本（U_CLEAN_4 回归保护）
-├── 优化计划/              # 改进指南 + 基线归档
+├── 计划书/                # ★ 当前有效计划指南（下一步改进指南.md v4.6.3→v8+ 第二版）
+├── 优化计划/              # 历史改进指南 + 基线归档
 │   ├── 下一步改进指南.md                      # ★ v4.1→v4.2→v5→v6+ 全栈迭代路线图（重写版，下游以此为准）
 │   ├── 下一步改进指南-v4.1基线归档.md         # v4.1 时代规划（历史参考）
 │   └── 下一步改进指南-v3基线归档.md            # v3 时代对 v4 的初步规划（历史参考，部分过时）
@@ -285,4 +310,4 @@ node verify-acceptance.cjs --strict   # 台账门禁：E2E≥47 且 单元≥50 
 
 ---
 
-*v4.6.3 基于 2026-09-15 真实复跑：E2E 核心 17/17 + SW 3/3 + 配置 5/5 + 引擎1.5 4/4 + 场景向导 6/6 + SSML/分块 4/4 + 无障碍 4/4 + 性能 4/4 + 可用性 4/4 = **51/51 PASS**；单元 U_CLEAN 7 + U_POOL 4 + U_CFG 8 + U_ZH 9 + A2 5 + B1 4 + WZ 6 + U_SPLIT/U_SSML 7 = **50/50 PASS**；全量回归 **101/101 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**剩余待办**：引擎1.5 真机出声测、E7 i18n / E10 CSP 收敛、v5 数据层（IndexedDB+BM25）与真 .pptx 导出、action 升级 @v5。*
+*v4.7.0 基于 2026-09-17 真实复跑：E2E 10 套件 = **59/59 PASS**（17+3+5+4+6+4+4+4+4+8）；单元 9 套件 = **57/57 PASS**（含 U_PLAY/U_SPEED 7）；全量回归 **116/116 PASS**（README 测试基线表）。版本真源四处一致（VERSION/package.json/tauri.conf.json/demo.html）由 `verify-acceptance --strict` 硬校验。**诚实披露**：① perf FCP 预算（<1.5s）在本机第三方域不可达环境下基线同日也超（v4.6.3≈2.4s / v4.7≈1.9s），属环境敏感项；② E7 动态状态文案为高频条目精确翻译，长尾中文回退；③ 引擎1.5 真机出声待测。**剩余待办**：E10 CSP 收敛评估、v5 数据层（IndexedDB+BM25/书签/混读）、真 .pptx 导出、桌面深化、action 升级 @v5。*

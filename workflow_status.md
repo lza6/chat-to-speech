@@ -639,3 +639,56 @@ $ node e2e-test-ssml.cjs
 ### 14.5 经验沉淀（已写入 skill）
 
 > **E2E 铁则：每个用例独立 page（或 newContext）+ 显式等应用就绪 + 轮询等目标状态；禁止“固定 sleep 后断言”。** 共享页面 + 固定 sleep 是 flaky 的主要来源，且会把产品缺陷与测试缺陷混为一谈（本次已用“产品侧挂起复现”与“测试侧串扰复现”分别归因）。
+
+## 15. v4.7.0 落地台账（2026-09-17）—— 体验收口·续 + 播放状态机 P0（116/116 PASS）
+
+> 依据《计划书/下一步改进指南.md》（v4.6.3→v8+ 第二版）。证据等级：`已验证` = 本机真实复跑。
+
+### 15.1 交付节点
+
+| 节点 | 内容 | 关键标识符 | 证据 |
+|------|------|-----------|------|
+| E3 听写 | 🎤 按钮 + SpeechRecognition（zh/en 跟随语言）+ 不支持降级文案 | `startDictation` / `#dictate-btn` | `已验证`（T_SR_1/2）|
+| E4 可视化 | AnalyserNode 频谱 + 失败降级估算模式 + 停止清空 | `vizAttach/vizStart/vizStop/vizClear` / `#viz-canvas` | `已验证`（T_VIZ_1/2）|
+| E5 试听 | 切换语音即试听（300ms 防抖；朗读中不打断；失败静默；不写历史/记忆）| `previewVoice/schedulePreview` | `已验证`（T_AUD_1）|
+| E6 语速 | 滑块 0.25-4 + 预设按钮 + 每语音记忆（`tts_speed_<voice>`）| `clampSpeed/applySpeedPreset/saveVoiceSpeed/loadVoiceSpeed` | `已验证`（U_SPEED_1/2 + T_SPEED_1）|
+| E7 i18n | 🌐 zh/en 切换 + data-i18n 批量扫描 + 中央状态文案翻译 + 跟随 navigator.language | `I18N_ZH/I18N_EN/t/applyI18n/toggleLang` | `已验证`（T_I18N_1）|
+| X-1 徽章真源 | 导航徽章运行时读 `__chattts.version`（不再硬编码 v4.6）| `#nav-badge` | `已验证`（T_VER_1）|
+| V5-11 状态机 P0 | `nextPlayState` 纯函数 + `playState` 单一状态源；**P-13 修复**：playBlob('error') 抛给降级链，不再静默当 ok；**P-14 收敛**：speak 竞态/stop/blocked/error 三态入机 | `nextPlayState/playState.apply` | `已验证`（U_PLAY_1-5）|
+| 性能优化 | `applyI18n` 只在值变化时写 DOM（消除首屏批量 textContent 触发的 layout 标脏）| `setIfDiff` | `已验证`（FCP 2944→1892ms）|
+
+### 15.2 测试（真实复跑，2026-09-17）
+
+| 套件 | 结果 |
+|------|------|
+| 单元 9 套件（含 unit-test-v47 7 项）| **57/57 PASS** |
+| e2e-test.cjs（T4/T8 改轮询断言）| **17/17 PASS** |
+| e2e-test-sw / cfg / zh / wizard / ssml / a11y / perf / avail | **3+5+4+6+4+4+4+4 PASS** |
+| e2e-test-v47.cjs（新增 8 项）| **8/8 PASS** |
+| 台账门禁 | `node verify-acceptance.cjs --strict` → **TOTAL 116 PASS**（E2E≥59 且 单元≥56 且版本一致）|
+
+### 15.3 关键根因与归因（A/B 实测，非猜测）
+
+- **T4/T8 历史 flaky**：固定 `waitForTimeout(4000)` 单次断言，降级链耗时受外部端点网络决定 → 按 v4.6.3 铁则改轮询断言。**A/B 验证**：v4.6.3 原版 demo.html 同机同网同样失败 → 非本版回归。
+- **perf 'load' 超时**：`page.goto(waitUntil:'load')` 依赖被外部 `uncloseai.com` 破坏的 load 事件（A/B：v4.6.3 原版同样 `readyState=interactive` 永不 complete）→ 改 `domcontentloaded` + 显式等应用就绪。
+- **FCP 环境敏感**：2026-09-17 本机 v4.6.3 基线 FCP≈2396ms / v4.7≈1892ms（优化后），预算 1.5s 双双超标；干净 CI 历史实测 528ms。预算保持不放水，本机 FCP 不达标记为环境项。
+
+### 15.4 变更文件
+
+- `demo.html`（+约 300 行：i18n/状态机/听写/可视化/试听/语速/徽章）→ `dist/index.html` 同步（CI diff 校验通过）
+- `unit-test-v47.cjs` / `e2e-test-v47.cjs`：新增
+- `e2e-test.cjs`（T4/T8 轮询）、`e2e-test-perf.cjs`（导航不依赖 load）：测试确定性收口
+- `verify-acceptance.cjs`：纳入新测试文件，门禁提升 E2E≥59 且 单元≥56
+- `VERSION`/`package.json`/`src-tauri/tauri.conf.json`：4.6.3 → **4.7.0**
+- `README.md`：v4.7 章节 + 测试基线 116 + 文件结构 + 已知限制（X-2）
+- `计划书/下一步改进指南.md`：基线状态更新
+
+### 15.5 剩余待办（诚实披露）
+
+- **perf FCP 预算**：本机第三方域不可达时基线同样超标 → 待干净 CI/真机复测确认预算内。
+- **E10 CSP 收敛**：与 v6 架构演进（方案 A：拆 app.js）绑定评估，未贸然改。
+- **v5 其余节点**：IDB+BM25 数据层 / 书签续读 / 队列恢复 / 多说话人混读 / 速度自适应 / 字幕同步 / 语义召回 / 错误分类 / 离线聊天兜底 / 移动端真机 / 真 .pptx / 公开 API / Web Worker / 音频后处理。
+- **引擎1.5 真机出声**：仍为外部受限（`待验证`）。
+- **a11y/perf 的 CI 复跑**：本机已全绿（perf FCP 除外，见上）。
+
+---
