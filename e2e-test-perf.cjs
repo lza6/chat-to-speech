@@ -46,7 +46,10 @@ async function test(name, fn) {
   });
 
   const page = await ctx.newPage();
-  await page.goto(BASE + '/demo.html', { waitUntil: 'load' });
+  // v4.7：外部 uncloseai.com 在该网络不可达时 'load' 事件可能永不触发（A/B 实测 v4.6.3 原版同样 STILL-interactive），
+  // 按 v4.6.3 铁则不依赖被第三方破坏的 load 事件，改为显式等应用就绪 + 固定沉降窗口采集 buffered 指标。
+  await page.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!(window.__chattts && window.__chattts.version), null, { timeout: 10000 });
   await page.waitForTimeout(3500); // 等 uncloseai.js / initVoices / 端点探测完成
 
   const perf = await page.evaluate(() => window.__perf);

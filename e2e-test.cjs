@@ -17,6 +17,17 @@ async function test(name, fn) {
 
 const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'); };
 
+async function until(fn, ms = 15000) {
+  const deadline = Date.now() + ms;
+  let last = null;
+  for (;;) {
+    last = await fn();
+    if (last) return last;
+    if (Date.now() > deadline) return last;
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext();
@@ -59,13 +70,14 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
   await test('T4 闭环②端点宕机→自动降级离线朗读', async () => {
     await page.fill('#tts-input', '你好，这是测试文本。');
     await page.click('#speak-btn');
-    // A2 多端点健康池：探测(≤5s) + 失败降级链(engine1→1.5→2) 需要更长等待
-    await page.waitForTimeout(4000);
-    const status = await page.textContent('#tts-status');
+    // A2 多端点健康池：探测(≤5s) + 失败降级链(engine1→1.5→2) 时序受外部端点网络影响，
+    // 按 v4.6.3 铁则改用轮询断言（固定 sleep 是 flaky 源），最多等 15s。
+    const status = await until(async () => {
+      const s = await page.textContent('#tts-status');
+      return /离线|切换|不可用|在线合成|播放完毕/.test(s) ? s : null;
+    }, 15000);
     console.log('   状态: ' + status);
-    // 应切换到离线引擎或提示不可用
-    const ok = /离线|切换|不可用|在线合成|播放完毕/.test(status);
-    assert(ok, '未正确降级，状态: ' + status);
+    assert(status, '未正确降级，状态: ' + (await page.textContent('#tts-status')));
   });
 
   // === T5: 字符计数 ===
@@ -107,11 +119,13 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'
     await page.fill('#tts-input', '快捷键测试。');
     await page.focus('#tts-input');
     await page.keyboard.press('Control+Enter');
-    // A2 探测(≤5s)+降级链；等待足够完成一次朗读
-    await page.waitForTimeout(4200);
-    const status = await page.textContent('#tts-status');
+    // A2 探测(≤5s)+降级链；按 v4.6.3 铁则轮询（外部端点网络决定降级耗时），最多等 15s
+    const status = await until(async () => {
+      const s = await page.textContent('#tts-status');
+      return /离线|在线|播放|合成|不可用|朗读完毕/.test(s) ? s : null;
+    }, 15000);
     // 朗读应已启动（状态变化）
-    assert(/离线|在线|播放|合成|不可用|朗读完毕/.test(status), 'Ctrl+Enter 未触发朗读，状态: ' + status);
+    assert(status, 'Ctrl+Enter 未触发朗读，状态: ' + (await page.textContent('#tts-status')));
   });
 
   // === T9: Esc 停止 ===
