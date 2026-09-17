@@ -304,6 +304,18 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
   .btn { padding: 10px 14px; }
 }
 
+        /* ============ v4.7 新增：听写 / 语速预设 / 频谱可视化 / 语言切换 ============ */
+        .tts-meta { flex-wrap: wrap; gap: 4px 12px; }
+        .tts-dictate { font-size: .8rem; padding: 3px 10px; margin-left: auto; }
+        .tts-dictate.recording { background: #b91c1c; border-color: #b91c1c; color: #fff; } /* axe: #fff on #b91c1c = 6.5:1 */
+        .speed-presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .speed-preset { font-size: .78rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--ink); cursor: pointer; }
+        .speed-preset:hover { border-color: var(--accent); }
+        .speed-preset.active { background: #4f46e5; border-color: #4f46e5; color: #fff; } /* axe: #fff on #4f46e5 = 6.28:1 */
+        .lang-btn { background: none; border: none; font-size: 1.15rem; cursor: pointer; padding: 4px 6px; border-radius: 8px; }
+        .lang-btn:hover { background: var(--surface-2); }
+        .viz-canvas { width: 100%; height: 56px; display: block; margin-top: 8px; border-radius: 8px; background: var(--surface-2); }
+        @media (prefers-reduced-motion: reduce) { .viz-canvas { display: none; } }
     </style>
 
     <!-- uncloseai.js 配置：必须在脚本加载前设置 -->
@@ -346,75 +358,85 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 <body>
     <nav class="app-nav" aria-label="主导航">
         <div class="nav-inner">
-            <a class="brand" href="#top" aria-label="回到顶部"><span class="brand-dot" aria-hidden="true"></span>在线聊天转语音</a>
+            <a class="brand" href="#top" aria-label="回到顶部"><span class="brand-dot" aria-hidden="true"></span><span data-i18n="nav_brand">在线聊天转语音</span></a>
             <div class="nav-links">
-                <a href="#speak">朗读</a>
-                <a href="#chat">AI 对话</a>
-                <a href="#wizard-panel">场景向导</a>
-                <a href="#timeline-panel">时间线</a>
-                <span class="nav-badge">v4.6</span>
+                <a href="#speak" data-i18n="nav_speak">朗读</a>
+                <a href="#chat" data-i18n="nav_chat">AI 对话</a>
+                <a href="#wizard-panel" data-i18n="nav_wizard">场景向导</a>
+                <a href="#timeline-panel" data-i18n="nav_timeline">时间线</a>
+                <span class="nav-badge" id="nav-badge">v4.7.0</span>
             </div>
         </div>
     </nav>
 
 
     <header>
-        <button id="theme-btn" aria-label="切换主题" title="切换主题（自动/暗色/亮色）" aria-keyshortcuts="Control+Comma">🌙</button>
-        <h1>🎙️ 在线聊天转语音</h1>
-        <p class="lead">免费的 AI 对话 + 文本转语音，纯前端、无需注册、无需 API Key。</p>
-        <p class="lead">聊天、朗读、整页听书——三条闭环，一个页面搞定。</p>
+        <button id="theme-btn" data-i18n-title="theme_btn_title" aria-label="切换主题" title="切换主题（自动/暗色/亮色）" aria-keyshortcuts="Control+Comma">🌙</button>
+        <button id="lang-btn" class="lang-btn" aria-label="切换语言 / Switch language" title="中文 / English" aria-keyshortcuts="Control+KeyL">🌐</button>
+        <h1 data-i18n="h1">🎙️ 在线聊天转语音</h1>
+        <p class="lead" data-i18n="lead1">免费的 AI 对话 + 文本转语音，纯前端、无需注册、无需 API Key。</p>
+        <p class="lead" data-i18n="lead2">聊天、朗读、整页听书——三条闭环，一个页面搞定。</p>
         <div class="chips">
-            <span class="chip"><b>①</b> 聊天自动出语音按钮</span>
-            <span class="chip"><b>②</b> 任意文本转语音</span>
-            <span class="chip"><b>③</b> 整页内容朗读</span>
+            <span class="chip"><b>①</b> <span data-i18n="chip1">聊天自动出语音按钮</span></span>
+            <span class="chip"><b>②</b> <span data-i18n="chip2">任意文本转语音</span></span>
+            <span class="chip"><b>③</b> <span data-i18n="chip3">整页内容朗读</span></span>
         </div>
     </header>
 
     <main>
     <!-- 闭环②：任意文本转语音（直连 TTS 端点，不依赖聊天模型） -->
     <section class="tts-demo" id="speak">
-        <h2>任意文本转语音</h2>
-        <p class="desc">输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。语速实时可调。</p>
+        <h2 data-i18n="tts_h2">任意文本转语音</h2>
+        <p class="desc" data-i18n="tts_desc">输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。语速实时可调。</p>
         <div class="tts-row">
             <div style="flex:1 1 320px; display:flex; flex-direction:column;">
                 <label class="visually-hidden" for="tts-input">要朗读的文字</label>
-                <textarea id="tts-input" maxlength="5000"
+                <textarea id="tts-input" maxlength="5000" data-i18n-ph="tts_ph"
                     placeholder="在这里输入要朗读的文字，例如：你好，这是一个把文字变成声音的免费工具。">你好，这是一个把文字变成声音的免费工具。输入任意内容，点击下方按钮就能听到。</textarea>
                 <div id="tts-mirror" class="tts-mirror" aria-live="off" aria-hidden="false"></div>
                 <div class="tts-meta">
                     <span id="char-count">0 / 5000</span>
-                    <span><kbd>Ctrl+Enter</kbd> 朗读 · <kbd>Esc</kbd> 停止 · <kbd>空格</kbd> 暂停</span>
+                    <span data-i18n-html="tts_kbd"><kbd>Ctrl+Enter</kbd> 朗读 · <kbd>Esc</kbd> 停止 · <kbd>空格</kbd> 暂停</span>
+                    <button type="button" class="btn ghost tts-dictate" id="dictate-btn" data-i18n="dictate_btn" aria-label="语音听写输入" title="语音听写输入" aria-pressed="false">🎤 听写</button>
                 </div>
             </div>
             <div class="tts-controls">
-                <label class="visually-hidden" for="voice-select">选择语音</label>
-                <select id="voice-select" aria-label="选择语音">
+                <label class="visually-hidden" for="voice-select" data-i18n="voice_label">选择语音</label>
+                <select id="voice-select" data-i18n-aria="voice_label" aria-label="选择语音">
                     <!-- 兜底 3 项；initVoices() 会动态拉取 42+ 语音替换 -->
                     <option value="aria">aria（女声）</option>
                     <option value="atlas">atlas（男声）</option>
                     <option value="foxhop">foxhop（操作员自录）</option>
                 </select>
                 <span id="endpoint-badge" class="ep-badge ep-unknown" title="正在检测语音端点…">● 检测中</span>
-                <label class="visually-hidden" for="speed-slider">语速</label>
-                <input type="range" id="speed-slider" min="0.5" max="2" step="0.1" value="1" aria-label="语速" title="朗读中可实时拖动调节语速">
-                <button class="btn" id="speak-btn" aria-label="朗读这段话" aria-keyshortcuts="Control+Enter">🔊 朗读这段话</button>
-                <button class="btn ghost" id="stop-btn" aria-label="停止朗读" aria-keyshortcuts="Escape">⏹ 停止</button>
+                <label class="visually-hidden" for="speed-slider" data-i18n="speed_label">语速</label>
+                <input type="range" id="speed-slider" min="0.25" max="4" step="0.05" value="1" data-i18n-aria="speed_label" aria-label="语速" title="朗读中可实时拖动调节语速">
+                <div class="speed-presets" id="speed-presets" role="group" aria-label="语速预设">
+                    <button type="button" class="speed-preset" data-speed="0.75">0.75×</button>
+                    <button type="button" class="speed-preset" data-speed="1">1×</button>
+                    <button type="button" class="speed-preset" data-speed="1.5">1.5×</button>
+                    <button type="button" class="speed-preset" data-speed="2">2×</button>
+                    <button type="button" class="speed-preset" data-speed="3">3×</button>
+                </div>
+                <button class="btn" id="speak-btn" data-i18n="speak_btn" aria-label="朗读这段话" aria-keyshortcuts="Control+Enter">🔊 朗读这段话</button>
+                <button class="btn ghost" id="stop-btn" data-i18n="stop_btn" aria-label="停止朗读" aria-keyshortcuts="Escape">⏹ 停止</button>
             </div>
         </div>
         <progress id="tts-progress" max="100" value="0" style="display:none;" aria-hidden="true"></progress>
+        <canvas id="viz-canvas" class="viz-canvas" width="640" height="56" aria-hidden="true"></canvas>
         <div class="examples" id="examples">
-            <button class="chip-btn" data-text="你好，欢迎使用聊天转语音工具。">👋 打招呼</button>
-            <button class="chip-btn" data-text="床前明月光，疑是地上霜。举头望明月，低头思故乡。">📖 古诗</button>
-            <button class="chip-btn" data-text="本工具完全免费，无需注册，无需 API Key，纯前端运行。">💡 介绍</button>
+            <button class="chip-btn" data-text="你好，欢迎使用聊天转语音工具。" data-i18n="ex1">👋 打招呼</button>
+            <button class="chip-btn" data-text="床前明月光，疑是地上霜。举头望明月，低头思故乡。" data-i18n="ex2">📖 古诗</button>
+            <button class="chip-btn" data-text="本工具完全免费，无需注册，无需 API Key，纯前端运行。" data-i18n="ex3">💡 介绍</button>
         </div>
         <div class="toolbar">
-            <button class="btn ghost" id="download-btn" aria-label="下载音频" aria-keyshortcuts="Control+d">💾 下载音频</button>
-            <button class="btn ghost" id="history-btn" aria-label="朗读历史" aria-expanded="false" aria-keyshortcuts="Control+h">📋 历史</button>
-            <button class="btn ghost" id="export-history-btn" aria-label="导出历史">📤 导出</button>
-            <button class="btn ghost" id="clear-history-btn" aria-label="清空历史">🗑️ 清空</button>
-            <button class="btn ghost" id="timeline-btn" aria-label="透明操作时间线" aria-expanded="false">🧾 透明时间线</button>
-            <button class="btn ghost" id="memory-btn" aria-label="本地记忆与画像" aria-expanded="false">🧠 记忆</button>
-            <button class="btn ghost" id="cfg-btn" aria-label="高级设置" aria-expanded="false">⚙️ 设置</button>
+            <button class="btn ghost" id="download-btn" data-i18n="dl_btn" aria-label="下载音频" aria-keyshortcuts="Control+d">💾 下载音频</button>
+            <button class="btn ghost" id="history-btn" data-i18n="history_btn" aria-label="朗读历史" aria-expanded="false" aria-keyshortcuts="Control+h">📋 历史</button>
+            <button class="btn ghost" id="export-history-btn" data-i18n="export_btn" aria-label="导出历史">📤 导出</button>
+            <button class="btn ghost" id="clear-history-btn" data-i18n="clear_btn" aria-label="清空历史">🗑️ 清空</button>
+            <button class="btn ghost" id="timeline-btn" data-i18n="timeline_btn" aria-label="透明操作时间线" aria-expanded="false">🧾 透明时间线</button>
+            <button class="btn ghost" id="memory-btn" data-i18n="memory_btn" aria-label="本地记忆与画像" aria-expanded="false">🧠 记忆</button>
+            <button class="btn ghost" id="cfg-btn" data-i18n="cfg_btn" aria-label="高级设置" aria-expanded="false">⚙️ 设置</button>
         </div>
         <!-- P0-3 配置面板（v4 新增） -->
         <div id="cfg-panel" role="region" aria-label="高级设置" style="display:none;">
@@ -460,7 +482,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         </div>
         <div class="history-search" id="history-search-wrap" style="display:none;">
             <label class="visually-hidden" for="history-search">搜索历史</label>
-            <input type="search" id="history-search" placeholder="搜索历史文本或语音…" aria-label="搜索历史">
+            <input type="search" id="history-search" data-i18n-ph="history_search_ph" data-i18n-aria="history_search_aria" placeholder="搜索历史文本或语音…" aria-label="搜索历史">
         </div>
         <div class="history-panel" id="history-panel" role="region" aria-label="朗读历史"></div>
         <div class="status" id="tts-status" role="status" aria-live="polite"></div>
@@ -469,43 +491,43 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 
     <!-- 闭环①：内嵌聊天界面 -->
     <section class="panel" id="chat">
-        <h2 class="panel-title">💬 AI 对话（回复可一键朗读）</h2>
+        <h2 class="panel-title" data-i18n="chat_h2">💬 AI 对话（回复可一键朗读）</h2>
         <div class="uncloseai"
              data-type="custom"
              data-features="chat,tts,smart-translate">
         </div>
         <div class="read-row">
             <!-- 闭环③：朗读当前整页内容 -->
-            <button class="btn ghost" id="read-page-btn" aria-label="朗读整页内容">📖 朗读整页内容</button>
+            <button class="btn ghost" id="read-page-btn" data-i18n="read_btn" aria-label="朗读整页内容">📖 朗读整页内容</button>
         </div>
         <div class="status" id="chat-status" role="status" aria-live="polite"></div>
     </section>
 
     <!-- B3-B5：场景向导（任务看板 / PPT / 电商文案）——纯前端，数据全部存 localStorage -->
     <section class="panel" id="wizard-panel">
-        <h2 class="panel-title">🧭 场景向导（任务看板 · PPT 生成 · 电商文案）</h2>
+        <h2 class="panel-title" data-i18n="wz_h2">🧭 场景向导（任务看板 · PPT 生成 · 电商文案）</h2>
         <div class="wizard-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;">
-            <button class="btn ghost wizard-tab" data-wtab="board" aria-pressed="true">🗂️ 任务看板</button>
-            <button class="btn ghost wizard-tab" data-wtab="ppt" aria-pressed="false">📑 PPT 大纲</button>
-            <button class="btn ghost wizard-tab" data-wtab="ecom" aria-pressed="false">🛒 电商文案</button>
+            <button class="btn ghost wizard-tab" data-wtab="board" data-i18n="wz_board" aria-pressed="true">🗂️ 任务看板</button>
+            <button class="btn ghost wizard-tab" data-wtab="ppt" data-i18n="wz_ppt" aria-pressed="false">📑 PPT 大纲</button>
+            <button class="btn ghost wizard-tab" data-wtab="ecom" data-i18n="wz_ecom" aria-pressed="false">🛒 电商文案</button>
         </div>
 
         <!-- B3 任务看板：Backlog/Planning/Running/Review/Done + 依赖满足门 -->
         <div class="wizard-body" data-wtab-pane="board">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-                <input type="text" id="wz-task-input" placeholder="新任务：如「给文章配音」" style="flex:1 1 240px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
-                <select id="wz-task-kind" aria-label="任务类型" style="padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
-                    <option value="tts">🔊 朗读</option>
-                    <option value="ppt">📑 PPT</option>
-                    <option value="ecom">🛒 电商</option>
-                    <option value="video">🎬 视频</option>
+                <input type="text" id="wz-task-input" data-i18n-ph="wz_task_ph" placeholder="新任务：如「给文章配音」" style="flex:1 1 240px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                <select id="wz-task-kind" data-i18n-aria="wz_task_kind" aria-label="任务类型" style="padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                    <option value="tts" data-i18n="wz_kind_tts">🔊 朗读</option>
+                    <option value="ppt" data-i18n="wz_kind_ppt">📑 PPT</option>
+                    <option value="ecom" data-i18n="wz_kind_ecom">🛒 电商</option>
+                    <option value="video" data-i18n="wz_kind_video">🎬 视频</option>
                 </select>
-                <button class="btn" id="wz-task-add">＋ 添加任务</button>
+                <button class="btn" id="wz-task-add" data-i18n="wz_add">＋ 添加任务</button>
             </div>
             <div id="wz-board" class="wz-board" style="display:flex;gap:8px;flex-wrap:wrap;" aria-live="polite"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-                <button class="btn ghost" id="wz-demo-seed">✨ 填入示例任务</button>
-                <button class="btn ghost" id="wz-board-reset">🗑️ 清空看板</button>
+                <button class="btn ghost" id="wz-demo-seed" data-i18n="wz_seed">✨ 填入示例任务</button>
+                <button class="btn ghost" id="wz-board-reset" data-i18n="wz_board_reset">🗑️ 清空看板</button>
             </div>
             <div id="wz-board-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:8px;"></div>
         </div>
@@ -513,25 +535,25 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         <!-- B4 PPT 大纲：输入 → 解析分页 → 几何审计 → 导出 .pptx 骨架文本 -->
         <div class="wizard-body" data-wtab-pane="ppt" style="display:none;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <input type="text" id="wz-ppt-title" placeholder="演示文稿标题" style="flex:1 1 240px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
-                <button class="btn" id="wz-ppt-gen">📐 生成大纲</button>
-                <button class="btn ghost" id="wz-ppt-export">📤 导出 .pptx 文本</button>
+                <input type="text" id="wz-ppt-title" data-i18n-ph="wz_ppt_title" placeholder="演示文稿标题" style="flex:1 1 240px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                <button class="btn" id="wz-ppt-gen" data-i18n="wz_ppt_gen">📐 生成大纲</button>
+                <button class="btn ghost" id="wz-ppt-export" data-i18n="wz_ppt_export">📤 导出 .pptx 文本</button>
             </div>
-            <textarea id="wz-ppt-spec" rows="6" placeholder="每空行一页：第一行为页标题，后面每行一个要点。&#10;例：&#10;封面：本周工作汇报&#10;完成了 3 个模块&#10;&#10;进展&#10;模块 A 已上线&#10;模块 B 联调中" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;"></textarea>
+            <textarea id="wz-ppt-spec" rows="6" data-i18n-ph="wz_ppt_spec_ph" placeholder="每空行一页：第一行为页标题，后面每行一个要点。&#10;例：&#10;封面：本周工作汇报&#10;完成了 3 个模块&#10;&#10;进展&#10;模块 A 已上线&#10;模块 B 联调中" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;"></textarea>
             <div id="wz-ppt-out" aria-live="polite" style="margin-top:10px;"></div>
         </div>
 
         <!-- B5 电商文案：商品卡 → 三段草稿 → 禁用词替换 -->
         <div class="wizard-body" data-wtab-pane="ecom" style="display:none;">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px;">
-                <input type="text" id="wz-ecom-name" placeholder="商品名" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
-                <input type="text" id="wz-ecom-price" placeholder="价格" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
-                <input type="text" id="wz-ecom-aud" placeholder="人群（逗号分隔）" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                <input type="text" id="wz-ecom-name" data-i18n-ph="wz_ecom_name_ph" placeholder="商品名" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                <input type="text" id="wz-ecom-price" data-i18n-ph="wz_ecom_price_ph" placeholder="价格" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
+                <input type="text" id="wz-ecom-aud" data-i18n-ph="wz_ecom_aud_ph" placeholder="人群（逗号分隔）" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);">
             </div>
-            <textarea id="wz-ecom-sells" rows="3" placeholder="卖点，每行一个" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;"></textarea>
+            <textarea id="wz-ecom-sells" rows="3" data-i18n-ph="wz_ecom_sells_ph" placeholder="卖点，每行一个" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px;">
-                <button class="btn" id="wz-ecom-gen">🛒 生成文案草稿</button>
-                <button class="btn ghost" id="wz-ecom-copy">📋 复制全部</button>
+                <button class="btn" id="wz-ecom-gen" data-i18n="wz_ecom_gen">🛒 生成文案草稿</button>
+                <button class="btn ghost" id="wz-ecom-copy" data-i18n="wz_ecom_copy">📋 复制全部</button>
             </div>
             <div id="wz-ecom-out" aria-live="polite" style="margin-top:10px;"></div>
         </div>
@@ -539,29 +561,29 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
     
     <!-- 数据管理：时间线 + 记忆 抽屉收纳（P2-5） -->
     <section class="panel" id="data-panel">
-        <h2 class="panel-title">🗄️ 数据管理（时间线 · 记忆）</h2>
+        <h2 class="panel-title" data-i18n="data_h2">🗄️ 数据管理（时间线 · 记忆）</h2>
         <div class="wizard-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;">
-            <button class="btn ghost wizard-tab" data-wtab="timeline" aria-pressed="true">🧾 透明时间线</button>
-            <button class="btn ghost wizard-tab" data-wtab="memory" aria-pressed="false">🧠 本地记忆</button>
+            <button class="btn ghost wizard-tab" data-wtab="timeline" data-i18n="data_tl" aria-pressed="true">🧾 透明时间线</button>
+            <button class="btn ghost wizard-tab" data-wtab="memory" data-i18n="data_mem" aria-pressed="false">🧠 本地记忆</button>
         </div>
         <div class="wizard-body" data-wtab-pane="timeline">
             <div id="timeline-list" class="timeline-list" aria-live="polite"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                <button class="btn ghost" id="timeline-export">📤 导出日志 JSON</button>
-                <button class="btn ghost" id="timeline-clear">🗑️ 清空日志</button>
+                <button class="btn ghost" id="timeline-export" data-i18n="tl_export">📤 导出日志 JSON</button>
+                <button class="btn ghost" id="timeline-clear" data-i18n="tl_clear">🗑️ 清空日志</button>
             </div>
             <div id="timeline-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
         </div>
         <div class="wizard-body" data-wtab-pane="memory" style="display:none;">
             <div class="memory-tabs" style="display:flex;gap:8px;margin-bottom:8px;">
-                <button class="btn ghost memory-tab" data-tab="persona">👤 画像</button>
-                <button class="btn ghost memory-tab" data-tab="records">🗂️ 记忆</button>
-                <button class="btn ghost memory-tab" data-tab="skills">✨ 结晶技能</button>
+                <button class="btn ghost memory-tab" data-tab="persona" data-i18n="mem_persona">👤 画像</button>
+                <button class="btn ghost memory-tab" data-tab="records" data-i18n="mem_records">🗂️ 记忆</button>
+                <button class="btn ghost memory-tab" data-tab="skills" data-i18n="mem_skills">✨ 结晶技能</button>
             </div>
             <div id="memory-body" aria-live="polite"></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                <button class="btn ghost" id="memory-export">📤 导出记忆 JSON</button>
-                <button class="btn ghost" id="memory-clear">🗑️ 清空记忆</button>
+                <button class="btn ghost" id="memory-export" data-i18n="mem_export">📤 导出记忆 JSON</button>
+                <button class="btn ghost" id="memory-clear" data-i18n="mem_clear">🗑️ 清空记忆</button>
             </div>
             <div id="memory-status" role="status" aria-live="polite" style="color:var(--muted);font-size:.8rem;margin-top:6px;"></div>
         </div>
@@ -590,6 +612,8 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         const historyPanel = document.getElementById('history-panel');
         const clearHistoryBtn = document.getElementById('clear-history-btn');
         const themeBtn   = document.getElementById('theme-btn');
+        const dictateBtn = document.getElementById('dictate-btn');
+        const langBtn    = document.getElementById('lang-btn');
 
         // P2-3: 历史搜索/导出元素
         const exportHistoryBtn = document.getElementById('export-history-btn');
@@ -684,8 +708,126 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         const MODEL_CACHE_KEY = 'unclose_real_model_v2';
         const MODEL_CACHE_TTL = 1000 * 60 * 30; // 30 分钟
 
-        function setStatus(msg) { statusEl.textContent = msg; }
-        function showNotice(msg) { noticeEl.textContent = msg; noticeEl.classList.add('show'); }
+        // ============ E7：i18n（zh/en，内联字典，缺失 key 回退中文） ============
+        const LANG_KEY = 'tts_lang_v1';
+        const I18N_ZH = {
+            nav_brand: '在线聊天转语音', nav_speak: '朗读', nav_chat: 'AI 对话', nav_wizard: '场景向导', nav_timeline: '时间线',
+            h1: '🎙️ 在线聊天转语音',
+            lead1: '免费的 AI 对话 + 文本转语音，纯前端、无需注册、无需 API Key。',
+            lead2: '聊天、朗读、整页听书——三条闭环，一个页面搞定。',
+            chip1: '聊天自动出语音按钮', chip2: '任意文本转语音', chip3: '整页内容朗读',
+            tts_h2: '任意文本转语音',
+            tts_desc: '输入任意文字，点"朗读这段话"即可听。直连免费 TTS 端点，42+ 语音可选。语速实时可调。',
+            tts_ph: '在这里输入要朗读的文字，例如：你好，这是一个把文字变成声音的免费工具。',
+            tts_kbd: '<kbd>Ctrl+Enter</kbd> 朗读 · <kbd>Esc</kbd> 停止 · <kbd>空格</kbd> 暂停',
+            dictate_btn: '🎤 听写', voice_label: '选择语音', speed_label: '语速',
+            speak_btn: '🔊 朗读这段话', stop_btn: '⏹ 停止',
+            ex1: '👋 打招呼', ex2: '📖 古诗', ex3: '💡 介绍',
+            dl_btn: '💾 下载音频', history_btn: '📋 历史', export_btn: '📤 导出', clear_btn: '🗑️ 清空',
+            timeline_btn: '🧾 透明时间线', memory_btn: '🧠 记忆', cfg_btn: '⚙️ 设置',
+            history_search_ph: '搜索历史文本或语音…', history_search_aria: '搜索历史',
+            chat_h2: '💬 AI 对话（回复可一键朗读）', read_btn: '📖 朗读整页内容',
+            wz_h2: '🧭 场景向导（任务看板 · PPT 生成 · 电商文案）',
+            wz_board: '🗂️ 任务看板', wz_ppt: '📑 PPT 大纲', wz_ecom: '🛒 电商文案',
+            wz_task_ph: '新任务：如「给文章配音」', wz_task_kind: '任务类型',
+            wz_kind_tts: '🔊 朗读', wz_kind_ppt: '📑 PPT', wz_kind_ecom: '🛒 电商', wz_kind_video: '🎬 视频',
+            wz_add: '＋ 添加任务', wz_seed: '✨ 填入示例任务', wz_board_reset: '🗑️ 清空看板',
+            wz_ppt_title: '演示文稿标题', wz_ppt_gen: '📐 生成大纲', wz_ppt_export: '📤 导出 .pptx 文本',
+            wz_ppt_spec_ph: '每空行一页：第一行为页标题，后面每行一个要点。\n例：\n封面：本周工作汇报\n完成了 3 个模块\n\n进展\n模块 A 已上线\n模块 B 联调中',
+            wz_ecom_name_ph: '商品名', wz_ecom_price_ph: '价格', wz_ecom_aud_ph: '人群（逗号分隔）', wz_ecom_sells_ph: '卖点，每行一个',
+            wz_ecom_gen: '🛒 生成文案草稿', wz_ecom_copy: '📋 复制全部',
+            data_h2: '🗄️ 数据管理（时间线 · 记忆）', data_tl: '🧾 透明时间线', data_mem: '🧠 本地记忆',
+            tl_export: '📤 导出日志 JSON', tl_clear: '🗑️ 清空日志',
+            mem_persona: '👤 画像', mem_records: '🗂️ 记忆', mem_skills: '✨ 结晶技能',
+            mem_export: '📤 导出记忆 JSON', mem_clear: '🗑️ 清空记忆',
+            theme_btn_title: '切换主题（自动/暗色/亮色）'
+        };
+        const I18N_EN = {
+            nav_brand: 'Online Chat TTS', nav_speak: 'Read', nav_chat: 'AI Chat', nav_wizard: 'Scenarios', nav_timeline: 'Timeline',
+            h1: '🎙️ Online Chat to Speech',
+            lead1: 'Free AI chat + text-to-speech. Pure frontend, no sign-up, no API key.',
+            lead2: 'Chat, read aloud, and listen to the whole page. Three loops, one page.',
+            chip1: 'Chat replies get a one-tap voice button', chip2: 'Turn any text into speech', chip3: 'Read the whole page aloud',
+            tts_h2: 'Any Text to Speech',
+            tts_desc: 'Type any text and tap "Read aloud". Connects to the free TTS endpoint with 42+ voices. Speed adjusts in real time.',
+            tts_ph: 'Type text to read aloud, e.g. Hello, this is a free tool that turns text into voice.',
+            tts_kbd: '<kbd>Ctrl+Enter</kbd> read · <kbd>Esc</kbd> stop · <kbd>Space</kbd> pause',
+            dictate_btn: '🎤 Dictate', voice_label: 'Choose voice', speed_label: 'Speed',
+            speak_btn: '🔊 Read aloud', stop_btn: '⏹ Stop',
+            ex1: '👋 Hello', ex2: '📖 Poem', ex3: '💡 About',
+            dl_btn: '💾 Download audio', history_btn: '📋 History', export_btn: '📤 Export', clear_btn: '🗑️ Clear',
+            timeline_btn: '🧾 Timeline', memory_btn: '🧠 Memory', cfg_btn: '⚙️ Settings',
+            history_search_ph: 'Search history text or voice…', history_search_aria: 'Search history',
+            chat_h2: '💬 AI Chat (replies can be read aloud)', read_btn: '📖 Read whole page',
+            wz_h2: '🧭 Scenarios (Task Board · PPT · E-commerce Copy)',
+            wz_board: '🗂️ Task Board', wz_ppt: '📑 PPT Outline', wz_ecom: '🛒 E-commerce Copy',
+            wz_task_ph: 'New task, e.g. voice-over an article', wz_task_kind: 'Task type',
+            wz_kind_tts: '🔊 Read', wz_kind_ppt: '📑 PPT', wz_kind_ecom: '🛒 Ecom', wz_kind_video: '🎬 Video',
+            wz_add: '＋ Add task', wz_seed: '✨ Load examples', wz_board_reset: '🗑️ Clear board',
+            wz_ppt_title: 'Presentation title', wz_ppt_gen: '📐 Generate outline', wz_ppt_export: '📤 Export .pptx text',
+            wz_ppt_spec_ph: 'One page per blank line. First line is the page title, following lines are bullets.\nExample:\nCover: Weekly report\nFinished 3 modules\n\nProgress\nModule A is live\nModule B is in integration',
+            wz_ecom_name_ph: 'Product name', wz_ecom_price_ph: 'Price', wz_ecom_aud_ph: 'Audience (comma separated)', wz_ecom_sells_ph: 'Selling points, one per line',
+            wz_ecom_gen: '🛒 Generate drafts', wz_ecom_copy: '📋 Copy all',
+            data_h2: '🗄️ Data (Timeline · Memory)', data_tl: '🧾 Timeline', data_mem: '🧠 Local Memory',
+            tl_export: '📤 Export logs JSON', tl_clear: '🗑️ Clear logs',
+            mem_persona: '👤 Persona', mem_records: '🗂️ Records', mem_skills: '✨ Skills',
+            mem_export: '📤 Export memory JSON', mem_clear: '🗑️ Clear memory',
+            theme_btn_title: 'Switch theme (auto/dark/light)'
+        };
+        // 动态状态文案的中央翻译（精确匹配；未覆盖的长尾保持中文回退，诚实降级）
+        const STATUS_ZH2EN = {
+            '请先输入要朗读的文字。': 'Please enter text to read first.',
+            '已停止。': 'Stopped.',
+            '播放完毕。': 'Playback finished.',
+            '🔊 离线朗读完毕。': '🔊 Offline reading finished.',
+            '✅ 已就绪：可朗读文本，或在下方聊天后点回复旁的 🔊。': '✅ Ready: enter text to read, or chat below then tap 🔊 next to a reply.',
+            '⚠️ 所有引擎已被禁用，请在设置中启用至少一个引擎。': '⚠️ All engines are disabled. Enable at least one in Settings.',
+            '⚠️ 播放失败，已停止。请检查网络或换一个语音重试。': '⚠️ Playback failed and stopped. Check the network or try another voice.',
+            '浏览器拦截了自动播放。': 'The browser blocked autoplay.'
+        };
+        function getLang() {
+            try {
+                const s = localStorage.getItem(LANG_KEY);
+                if (s === 'zh' || s === 'en') return s;
+            } catch (_) {}
+            return /^zh/i.test(String(navigator.language || 'zh-CN')) ? 'zh' : 'en';
+        }
+        function setLang(l) { try { localStorage.setItem(LANG_KEY, l === 'en' ? 'en' : 'zh'); } catch (_) {} }
+        function t(key, vars) {
+            const d = getLang() === 'en' ? I18N_EN : I18N_ZH;
+            let s = d[key] != null ? d[key] : (I18N_ZH[key] != null ? I18N_ZH[key] : String(key));
+            if (vars) for (const k of Object.keys(vars)) s = s.split('{' + k + '}').join(String(vars[k]));
+            return s;
+        }
+        function tStatus(msg) {
+            if (getLang() !== 'en') return msg;
+            const s = String(msg);
+            return STATUS_ZH2EN[s] != null ? STATUS_ZH2EN[s] : s; // 未覆盖的动态文案保持中文回退
+        }
+        function applyI18n() {
+            const en = getLang() === 'en';
+            document.documentElement.lang = en ? 'en' : 'zh-CN';
+            // 性能：只在“值变化”时才写入 DOM（默认 zh 时几乎零写入，避免首屏前的批量
+            // textContent 赋值触发大面积 layout 标脏——v4.7 实测 FCP 因此多出 ~500ms）。
+            const setIfDiff = (el, attr, v) => { if (attr === 'text') { if (el.textContent !== v) el.textContent = v; } else if (attr === 'html') { if (el.innerHTML !== v) el.innerHTML = v; } else if (el.getAttribute(attr) !== v) el.setAttribute(attr, v); };
+            document.querySelectorAll('[data-i18n]').forEach(el => setIfDiff(el, 'text', t(el.dataset.i18n)));
+            document.querySelectorAll('[data-i18n-html]').forEach(el => setIfDiff(el, 'html', t(el.dataset.i18nHtml)));
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => setIfDiff(el, 'placeholder', t(el.dataset.i18nPh)));
+            document.querySelectorAll('[data-i18n-aria]').forEach(el => setIfDiff(el, 'aria-label', t(el.dataset.i18nAria)));
+            document.querySelectorAll('[data-i18n-title]').forEach(el => setIfDiff(el, 'title', t(el.dataset.i18nTitle)));
+            if (window.UNCLOSEAI_LANGUAGE !== undefined) window.UNCLOSEAI_LANGUAGE = en ? 'en' : 'zh';
+            if (window.__chattts) window.__chattts.lang = en ? 'en' : 'zh';
+        }
+        function toggleLang() {
+            setLang(getLang() === 'en' ? 'zh' : 'en');
+            applyI18n();
+            const lb = document.getElementById('lang-btn');
+            if (lb) lb.setAttribute('aria-label', '切换语言 / Switch language');
+            if (typeof updateSpeedPresetUI === 'function') updateSpeedPresetUI();
+            setStatus(getLang() === 'en' ? 'Language switched to English.' : '已切换为中文。');
+        }
+        function setStatus(msg) { statusEl.textContent = tStatus(msg); }
+        function showNotice(msg) { noticeEl.textContent = tStatus(msg); noticeEl.classList.add('show'); }
         function clearNotice()  { noticeEl.classList.remove('show'); noticeEl.textContent = ''; }
 
         // ============ 工具：错误日志（localStorage 环形缓冲，可导出） ============
@@ -817,6 +959,63 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         let ttsEndpointUp = null;           // null=未知 true=在线 false=宕机
         let ttsEndpointCheckedAt = 0;      // 上次探测时间戳
         let currentEngine = 0;             // 当前引擎 1=在线 15=本地中文 2=离线 3=文本
+        // ============ V5-11：播放状态机（P0，修复 P-13/P-14） ============
+        // 单一状态源：'errored' 是终结态，任何播放失败都不得被当作成功（历史缺陷：
+        // playBlob('error') 被静默当 ok 导致“用户听到一半失败却提示播放完毕”）。
+        function nextPlayState(state, action) {
+            const T = {
+                idle: { speak: 'preparing', stop: 'stopped' },
+                preparing: { ready: 'synthesizing', playing: 'playing', error: 'errored', stop: 'stopped' },
+                synthesizing: { playing: 'playing', done: 'completed', error: 'errored', stop: 'stopped' },
+                playing: { chunk: 'playing', paused: 'paused', error: 'errored', stopped: 'stopped', done: 'completed', blocked: 'stopped' },
+                paused: { resume: 'playing', stop: 'stopped', error: 'errored' },
+                errored: { speak: 'preparing', reset: 'idle' },
+                stopped: { speak: 'preparing', reset: 'idle' },
+                completed: { speak: 'preparing', reset: 'idle' }
+            };
+            return (T[state] && T[state][action]) || null;
+        }
+        const playState = {
+            state: 'idle', requestId: 0, engine: 0, error: null,
+            apply(action, ctx) {
+                const next = nextPlayState(this.state, action);
+                if (!next) return false;
+                this.state = next;
+                if (ctx && ctx.error != null) this.error = ctx.error;
+                if (ctx && ctx.engine != null) this.engine = ctx.engine;
+                try { pushTimeline('play', '状态:' + this.state + ' (动作:' + action + ')', next !== 'errored', this.error ? String(this.error).slice(0, 100) : ''); } catch (_) {}
+                return true;
+            },
+            reset() { this.state = 'idle'; this.requestId = 0; this.engine = 0; this.error = null; }
+        };
+        // ============ E6：语速范围 0.25-4 + 预设 + 每语音记忆 ============
+        function clampSpeed(n) {
+            const v = parseFloat(n);
+            if (!isFinite(v)) return 1;
+            return Math.min(4, Math.max(0.25, v));
+        }
+        function saveVoiceSpeed(voice, v) { try { localStorage.setItem('tts_speed_' + String(voice || ''), String(clampSpeed(v))); } catch (_) {} }
+        function loadVoiceSpeed(voice) {
+            try {
+                const v = parseFloat(localStorage.getItem('tts_speed_' + String(voice || '')));
+                if (isFinite(v)) return clampSpeed(v);
+            } catch (_) {}
+            try { const c = loadCfg(); return clampSpeed(c.speed); } catch (_) { return 1; }
+        }
+        function updateSpeedPresetUI() {
+            document.querySelectorAll('.speed-preset').forEach(b => {
+                b.classList.toggle('active', Math.abs(parseFloat(b.dataset.speed) - parseFloat(speedSlider.value)) < 0.01);
+            });
+        }
+        function applySpeedPreset(n) {
+            const v = clampSpeed(n);
+            speedSlider.value = String(v);
+            try { const c = loadCfg(); c.speed = v; saveCfg(c); } catch (_) {}
+            saveVoiceSpeed(voiceSel.value, v);
+            updateSpeedPresetUI();
+            return v;
+        }
+
         let synthVoices = [];              // 浏览器 SpeechSynthesis 语音列表
         let synthZhVoice = null;           // 选定的中文语音
         let zhWasmTts = null;              // 引擎1.5 实例（懒加载，缓存复用）
@@ -932,9 +1131,18 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         // V5-9 预埋：公开只读工具 API（供 E2E 断言 + 后续页面嵌入复用）
         try {
             window.__chattts = Object.assign(window.__chattts || {}, {
-                version: '4.6.3',
+                version: '4.7.0',
                 splitIntoChunks: splitIntoChunks,
-                parseSSML: parseSSML
+                parseSSML: parseSSML,
+                playState: playState,
+                nextPlayState: nextPlayState,
+                clampSpeed: clampSpeed,
+                applySpeedPreset: applySpeedPreset,
+                previewVoice: previewVoice,
+                schedulePreview: schedulePreview,
+                startDictation: startDictation,
+                t: t, tStatus: tStatus, getLang: getLang, setLang: setLang,
+                applyI18n: applyI18n, toggleLang: toggleLang
             });
         } catch (_) {}
 
@@ -1432,6 +1640,11 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                             progressEl.value = i;
                             const r = await playBlob(blobCache[i]);
                             if (r === 'stopped') break;
+                            if (r === 'error') {
+                                // P-13 修复：音频解码/播放失败是引擎1 失败，抛给降级链，绝不 report ok
+                                pushTimeline('play', '音频播放失败（第 ' + (i + 1) + ' 段），触发降级。', false, 'engine1');
+                                throw new Error('音频解码/播放失败（第 ' + (i + 1) + ' 段），中止本轮在线播放。');
+                            }
                             if (r !== 'blocked') audioBlobs.push(blobCache[i]);
                             if (r === 'blocked') break;
                         }
@@ -1557,6 +1770,8 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 
         function stopPlayback() {
             hlClear(); // P1-2 停止时清高亮
+            vizStop(); // E4：停止时清空频谱
+            playState.apply('stopped');
             isStopped = true;
             isSynthesizing = false;
             // P1-4: 同时取消浏览器内置语音（引擎2）
@@ -1581,11 +1796,135 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             speakBtn.removeAttribute('data-loading');
         }
 
+        // ============ E4：音频可视化（AnalyserNode 频谱，失败降级估算模式） ============
+        let vizCtx = null, vizRaf = 0, vizAnalyser = null, vizAudioCtx = null, vizElement = null, vizMode = 'idle', vizSrcNode = null;
+        function vizInit() {
+            const cv = document.getElementById('viz-canvas');
+            if (!cv) return null;
+            if (!vizCtx) vizCtx = cv.getContext('2d');
+            return vizCtx;
+        }
+        function vizAttach(audioEl) {
+            if (!vizInit()) return;
+            vizDisconnect(); // 每块新 Audio 都新建 MediaElementSource，先断开旧图节点防累积
+            vizElement = audioEl;
+            try {
+                if (!vizAudioCtx) vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume();
+                const src = vizAudioCtx.createMediaElementSource(audioEl);
+                const analyser = vizAudioCtx.createAnalyser();
+                analyser.fftSize = 64; analyser.smoothingTimeConstant = 0.8;
+                src.connect(analyser); analyser.connect(vizAudioCtx.destination);
+                vizAnalyser = analyser; vizSrcNode = src; vizMode = 'analyser';
+            } catch (_) { vizAnalyser = null; vizMode = 'estimate'; }
+            vizStart();
+        }
+        function vizStart() {
+            const cv = document.getElementById('viz-canvas');
+            if (!cv || !vizInit() || vizRaf) return;
+            const data = vizAnalyser ? new Uint8Array(vizAnalyser.frequencyBinCount) : null;
+            const t0 = Date.now();
+            const bars = 28;
+            const draw = () => {
+                vizRaf = requestAnimationFrame(draw);
+                if (!cv || !vizCtx) return;
+                if (isStopped || !currentAudio || (vizElement && vizElement.ended && !isSynthesizing)) { vizClear(); return; }
+                vizCtx.clearRect(0, 0, cv.width, cv.height);
+                for (let i = 0; i < bars; i++) {
+                    let v;
+                    if (data && vizAnalyser) {
+                        vizAnalyser.getByteFrequencyData(data);
+                        v = data[Math.floor(i * data.length / bars)] / 255;
+                    } else {
+                        const t = (Date.now() - t0) / 1000;
+                        v = 0.12 + 0.8 * Math.abs(Math.sin(t * 2.2 + i * 0.9)) * (0.35 + (i % 5) / 5);
+                    }
+                    const bh = Math.max(2, v * (cv.height - 6));
+                    const x = (i / bars) * cv.width + 2;
+                    const bw = Math.max(2, cv.width / bars - 4);
+                    vizCtx.fillStyle = 'rgba(99,102,241,' + (0.4 + v * 0.6) + ')';
+                    vizCtx.fillRect(x, cv.height - bh, bw, bh);
+                }
+            };
+            draw();
+        }
+        function vizDisconnect() {
+            try { if (vizAnalyser && vizAnalyser.context) vizAnalyser.disconnect(); } catch (_) {}
+            try { if (vizSrcNode) vizSrcNode.disconnect(); } catch (_) {}
+            vizAnalyser = null; vizSrcNode = null;
+        }
+        function vizStop() {
+            if (vizRaf) { try { cancelAnimationFrame(vizRaf); } catch (_) {} vizRaf = 0; }
+            vizDisconnect();
+            vizClear();
+        }
+        function vizClear() {
+            const cv = document.getElementById('viz-canvas');
+            if (cv && vizCtx) vizCtx.clearRect(0, 0, cv.width, cv.height);
+        }
+        // ============ E5：语音试听（切换即听；不写历史/记忆；失败静默） ============
+        let previewTimer = null, previewing = false, previewSeq = 0;
+        const PREVIEW_TEXT_ZH = '你好，我是这个示例语音。';
+        const PREVIEW_TEXT_EN = 'Hello, this is the sample voice.';
+        async function previewVoice(voice) {
+            const v = String(voice || '');
+            if (!v || previewing) return;
+            if (isSynthesizing || playState.state === 'playing' || playState.state === 'synthesizing' || playState.state === 'preparing') return; // 朗读中不打断
+            previewing = true;
+            const mySeq = ++previewSeq;
+            try {
+                if (window.__chattts) window.__chattts.lastPreview = { voice: v, ts: Date.now() };
+                const text = getLang() === 'en' ? PREVIEW_TEXT_EN : PREVIEW_TEXT_ZH;
+                const b = await fetchTTSChunk(text, v, 1);
+                if (b && !isStopped && mySeq === previewSeq) await playBlob(b);
+            } catch (_) { /* 端点不可达时静默跳过，不打扰选音 */ }
+            finally { if (mySeq === previewSeq) previewing = false; }
+        }
+        function schedulePreview(voice) {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => { previewVoice(voice); }, 300);
+        }
+        // ============ E3：语音听写输入（SpeechRecognition，不支持时诚实降级） ============
+        let dictateRec = null;
+        function startDictation() {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                showNotice(getLang() === 'en' ? 'Speech input is not supported in this browser. Please type manually.' : '当前浏览器不支持语音听写，请手动输入。');
+                return;
+            }
+            if (dictateBtn && dictateBtn.classList.contains('recording')) {
+                try { if (dictateRec) dictateRec.stop(); } catch (_) {}
+                return;
+            }
+            const rec = new SR();
+            dictateRec = rec;
+            rec.lang = getLang() === 'en' ? 'en-US' : 'zh-CN';
+            rec.interimResults = false; rec.continuous = false; rec.maxAlternatives = 1;
+            if (dictateBtn) {
+                dictateBtn.classList.add('recording');
+                dictateBtn.setAttribute('aria-pressed', 'true');
+            }
+            setStatus(getLang() === 'en' ? '🎤 Listening… speak now.' : '🎤 正在聆听，请说话…');
+            rec.onresult = (e) => {
+                const t = e && e.results && e.results[0] && e.results[0][0] ? e.results[0][0].transcript : '';
+                if (t) { ttsInput.value = ttsInput.value ? (ttsInput.value + t) : t; updateCharCount(); }
+            };
+            rec.onerror = (e) => {
+                if (e && e.error === 'not-allowed') showNotice(getLang() === 'en' ? 'Microphone permission denied.' : '麦克风权限被拒绝。');
+            };
+            rec.onend = () => {
+                if (dictateBtn) { dictateBtn.classList.remove('recording'); dictateBtn.setAttribute('aria-pressed', 'false'); }
+                dictateRec = null;
+            };
+            try { rec.start(); } catch (_) { if (dictateBtn) dictateBtn.classList.remove('recording'); }
+        }
+
         async function playBlob(blob) {
             const url = URL.createObjectURL(blob);
             const audio = new Audio(url);
             audio.playbackRate = 1;
             currentAudio = audio;
+            vizAttach(audio); // E4：频谱可视化（失败自动降级估算模式）
             // ★ 同时记录 resolve 句柄，stopPlayback 可显式解锁，避免 promise 永挂
             return new Promise((resolve) => {
                 const done = (v) => {
@@ -1631,6 +1970,9 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             if (text.length > MAX_CHARS) { setStatus(`文本过长，请精简到 ${MAX_CHARS} 字以内。`); return; }
 
             const myId = ++speakRequestId;  // 竞态保护
+            playState.requestId = myId;
+            playState.engine = 0;
+            playState.apply('speak');
             unlockAudio();
             // 防重复：停止上一次，再开始新的
             stopPlayback();
@@ -1641,7 +1983,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             speakBtn.disabled = true;
             speakBtn.setAttribute('data-loading', 'true');
             const voice = voiceSel.value;
-            const speed = parseFloat(speedSlider.value) * (ssml && ssml.rateOverride ? ssml.rateOverride : 1);
+            const speed = clampSpeed(speedSlider.value) * (ssml && ssml.rateOverride ? ssml.rateOverride : 1);
 
             try {
                 const r = await synthChain(text, voice, speed, myId);
@@ -1649,6 +1991,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                     // 被中止，不更新 UI
                 } else if (r === 'ok') {
                     progressEl.value = progressEl.max;
+                    playState.apply('done', { engine: currentEngine });
                     // 引擎2 完成时 synthChain 已把状态置为「🔊 离线朗读完毕」；此处仅引擎1 在线走「播放完毕」
                     if (!/离线朗读完毕/.test(ttsStatus ? ttsStatus.textContent : '')) setStatus(currentEngine === 1 ? '播放完毕。' : '🔊 离线朗读完毕。');
                     saveHistory(text, voice);
@@ -1657,6 +2000,10 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                     setTimeout(() => {
                         if (!isSynthesizing && speakRequestId === finishId) progressEl.style.display = 'none';
                     }, 800);
+                } else if (r === 'error') {
+                    // P-13 修复：播放失败是终结态，绝不报告“播放完毕”
+                    playState.apply('error', { error: '播放失败' });
+                    setStatus('⚠️ 播放失败，已停止。请检查网络或换一个语音重试。');
                 } else if (r === 'fallback') {
                     // 引擎3 已在内部设置状态
                 }
@@ -2074,10 +2421,21 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         stopBtn.addEventListener('click', () => { stopPlayback(); setStatus('已停止。'); });
         readBtn.addEventListener('click', readPage);
         ttsInput.addEventListener('input', updateCharCount);
-        voiceSel.addEventListener('change', () => { try { localStorage.setItem(VOICE_KEY, voiceSel.value); } catch(_){} });
+        voiceSel.addEventListener('change', () => {
+            try { localStorage.setItem(VOICE_KEY, voiceSel.value); } catch(_){}
+            // E6：每语音记忆上次语速（切换语音即恢复）
+            speedSlider.value = String(loadVoiceSpeed(voiceSel.value));
+            updateSpeedPresetUI();
+            // E5：切换即试听（防抖 300ms；朗读中不打断）
+            schedulePreview(voiceSel.value);
+        });
         // P2-4 增强：语速滑动即持久化到配置中心（朗读时也实时生效）
         speedSlider.addEventListener('input', () => {
-            try { const c = loadCfg(); c.speed = parseFloat(speedSlider.value); saveCfg(c); } catch (_) {}
+            const v = clampSpeed(speedSlider.value);
+            speedSlider.value = String(v);
+            try { const c = loadCfg(); c.speed = v; saveCfg(c); } catch (_) {}
+            saveVoiceSpeed(voiceSel.value, v);
+            updateSpeedPresetUI();
         });
         historyBtn.addEventListener('click', () => {
             const open = historyPanel.classList.toggle('open');
@@ -2090,6 +2448,11 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         if (exportHistoryBtn) exportHistoryBtn.addEventListener('click', exportHistory);
         if (historySearch) historySearch.addEventListener('input', () => renderHistory(historySearch.value));
         themeBtn.addEventListener('click', cycleTheme);
+        if (dictateBtn) dictateBtn.addEventListener('click', startDictation);
+        if (langBtn) langBtn.addEventListener('click', toggleLang);
+        document.querySelectorAll('.speed-preset').forEach(b => {
+            b.addEventListener('click', () => applySpeedPreset(b.dataset.speed));
+        });
         document.querySelectorAll('.chip-btn').forEach(b => {
             b.addEventListener('click', () => {
                 ttsInput.value = b.dataset.text;
@@ -2699,6 +3062,12 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             });
         }
         // 初始化
+        applyI18n(); // E7：语言初始化（默认跟随 navigator.language；存量英文用户走 zh 回退）
+        // X-1：版本徽章与真源同步（v4.7）
+        try {
+            const nb = document.getElementById('nav-badge');
+            if (nb && window.__chattts && window.__chattts.version) nb.textContent = 'v' + window.__chattts.version;
+        } catch (_) {}
         updateCharCount();
         // P2-4 增强：主题与语速统一从配置中心恢复（theme 合并迁移旧 tts_theme_v2）
         try {
@@ -2713,9 +3082,9 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
             const theme = c.theme || 'auto';
             applyTheme(theme);
             if (theme !== 'auto') { try { localStorage.setItem(THEME_KEY, theme); } catch (_) {} }
-            // 语速恢复
-            const sp = parseFloat(c.speed);
-            if (sp >= 0.5 && sp <= 2 && speedSlider) speedSlider.value = String(sp);
+            // 语速恢复（E6：0.25-4 范围 + 每语音记忆）
+            if (speedSlider) speedSlider.value = String(clampSpeed(loadVoiceSpeed(voiceSel ? voiceSel.value : '')));
+            if (typeof updateSpeedPresetUI === 'function') updateSpeedPresetUI();
             // savedVoice 恢复交给 initVoices 内部处理（此时下拉只有 3 项兜底，动态加载后再匹配）
         } catch(_){}
         // P0-1: 预加载浏览器语音列表（异步，voiceschanged 后填充）
