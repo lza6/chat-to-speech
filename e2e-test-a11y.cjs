@@ -28,7 +28,7 @@ function fmtViolations(vs) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
 
   // 每用例独立页面：等内联 module 就绪（__chattts 暴露即说明监听器已绑定）
   const newReadyPage = async () => {

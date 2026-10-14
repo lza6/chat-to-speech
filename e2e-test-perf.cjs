@@ -18,7 +18,7 @@ async function test(name, fn) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
 
   // 在导航前注入采集器（buffered 捕获首屏指标）
   await ctx.addInitScript(() => {

@@ -28,7 +28,7 @@ async function test(name, fn) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
   const page = await ctx.newPage();
 
   // 关键：模拟 CI 弱网/被丢包——第三方请求永不返回（既不放行也不失败）

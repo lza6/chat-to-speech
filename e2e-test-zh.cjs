@@ -13,7 +13,7 @@ async function test(name, fn) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
   // 确定性场景（2026-10-14）：整套用例统一把 TTS 端点拦截为 502，消除对真实端点状态的依赖。
   // 根因：T_ZH_3 断言"关闭引擎1.5 后应落引擎2/3 兜底"，隐含假设端点宕机；端点可用时
   // 走引擎1 在线路径（这本身是正确的），却被判失败 → 随机 flaky。

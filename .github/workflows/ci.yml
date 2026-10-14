@@ -133,13 +133,25 @@ jobs:
       - name: Wait for server
         run: node -e "setTimeout(()=>{},3000)"
 
+      # 改进（2026-10-14）：原用 `&&` 串联，首个套件失败即中止整片 —— 导致后续套件的
+      # 真实结果被隐藏（曾因此看不到新增测试在 CI 的表现）。改为全部跑完再汇总失败清单。
       - name: E2E shard ${{ matrix.shard }} of 2
         run: |
           if [ "${{ matrix.shard }}" = "1" ]; then
-            node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-a11y.cjs && node e2e-test-p0-deadbtn.cjs
+            SUITES="e2e-test.cjs e2e-test-sw.cjs e2e-test-a11y.cjs e2e-test-p0-deadbtn.cjs"
           else
-            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-perf.cjs && node e2e-test-avail.cjs && node e2e-test-v47.cjs && node e2e-test-report.cjs
+            SUITES="e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs e2e-test-ssml.cjs e2e-test-perf.cjs e2e-test-avail.cjs e2e-test-v47.cjs e2e-test-report.cjs"
           fi
+          FAILED=""
+          for s in $SUITES; do
+            echo "=================== $s ==================="
+            node "$s" || FAILED="$FAILED $s"
+          done
+          if [ -n "$FAILED" ]; then
+            echo "❌ 本片失败套件:$FAILED"
+            exit 1
+          fi
+          echo "✅ shard ${{ matrix.shard }} 全部套件通过"
 
       - name: Acceptance ledger update
         run: node verify-acceptance.cjs

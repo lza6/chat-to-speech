@@ -16,7 +16,7 @@ function assert(c, m) { if (!c) throw new Error(m); }
 
 (async () => {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
 
   async function freshPage() {
     const p = await ctx.newPage();

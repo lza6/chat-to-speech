@@ -31,7 +31,7 @@ async function until(fn, ms = 8000) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
 
   // 每用例独立页面：等 DOMContentLoaded + 内联 module 就绪（__chattts 暴露后说明监听器已绑定）
   const newReadyPage = async () => {

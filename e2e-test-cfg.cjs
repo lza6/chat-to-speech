@@ -21,7 +21,7 @@ const ok = (cond, msg) => { if (!cond) throw new Error(msg || '断言失败'); }
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
   const page = await ctx.newPage();
 
   await page.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });

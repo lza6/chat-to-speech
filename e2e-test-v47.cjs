@@ -37,7 +37,7 @@ function makeWav(seconds = 2) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
 
   const newReadyPage = async (c) => {
     const p = await c.newPage();
@@ -46,7 +46,7 @@ function makeWav(seconds = 2) {
     return p;
   };
   const newMockedContext = async () => {
-    const c = await browser.newContext();
+    const c = await browser.newContext({ locale: 'zh-CN' });
     await c.route('**/v1/audio/speech', route => route.fulfill({ status: 200, contentType: 'audio/wav', body: makeWav(2) }));
     await c.route('**/v1/voices', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [{ voices: ['aria', 'atlas', 'foxhop'] }] }) }));
     return c;
@@ -184,7 +184,7 @@ function makeWav(seconds = 2) {
 
   // === T_SR_1: 听写结果回填（stub SpeechRecognition，替代浏览器 API 而非产品逻辑） ===
   await test('T_SR_1 语音听写结果回填输入框', async () => {
-    const ctxS = await browser.newContext();
+    const ctxS = await browser.newContext({ locale: 'zh-CN' });
     await ctxS.addInitScript(() => {
       window.SpeechRecognition = class {
         constructor() { this.onresult = null; this.onend = null; }
@@ -206,7 +206,7 @@ function makeWav(seconds = 2) {
   // === T_SR_2: 不支持时诚实降级（E3） ===
   await test('T_SR_2 不支持语音听写时给出降级文案', async () => {
     // 独立 context：避免共享 context 里 T_I18N_1 留下的 en 语言串扰（v4.6.3 隔离铁则）
-    const ctxI = await browser.newContext();
+    const ctxI = await browser.newContext({ locale: 'zh-CN' });
     const page = await newReadyPage(ctxI);
     try {
       const n = await page.evaluate(() => {

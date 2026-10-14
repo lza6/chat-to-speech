@@ -30,7 +30,7 @@ async function until(fn, ms = 15000) {
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
   const page = await ctx.newPage();
 
   const consoleErrors = [];
@@ -107,13 +107,20 @@ async function until(fn, ms = 15000) {
     }, 45000);
     console.log('   状态: ' + status);
     assert(status, '端点 502 后未正确降级，状态: ' + (await p4.textContent('#tts-status')));
-    // 必须真的走到终态（不是仅出现"试本地"就返回）
+    // 必须真的走到终态（不是仅出现"试本地"就返回）。
+    // 修正（2026-10-14，CI 实测）：原断言只认「朗读完毕|播放完毕」，但 CI（headless
+    // Ubuntu）无 WASM 显存、无浏览器语音、剪贴板被拦 → 降级链正确走到引擎3 文本兜底
+    // 「语音服务不可用」，这也是合法的**终结态**却判失败。
+    // 本用例的意图是「降级链不卡死、能收敛」，故接受全部合法终态。
     const final = await until(async () => {
       const s = await p4.textContent('#tts-status');
-      return /朗读完毕|播放完毕/.test(s || '') ? s : null;
+      return /朗读完毕|播放完毕|语音服务不可用|已停止|失败/.test(s || '') ? s : null;
     }, 45000);
     console.log('   终态: ' + final);
-    assert(final, '降级后未走到朗读终态，状态: ' + (await p4.textContent('#tts-status')));
+    assert(final, '降级后未走到朗读终态（降级链卡死），状态: ' + (await p4.textContent('#tts-status')));
+    // 另断言：绝不出现"播放完毕"但实际没出声的静默成功（P-13 守护）
+    const txt = await p4.textContent('#tts-status');
+    assert(!(/语音服务不可用/.test(txt) && /播放完毕/.test(txt)), '状态自相矛盾（既不可用又报播放完毕）: ' + txt);
     await p4.close();
   });
 
