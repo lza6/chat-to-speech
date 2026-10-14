@@ -3,8 +3,11 @@
 'use strict';
 const { chromium } = require('playwright');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
-const FILE = 'file:///' + path.resolve('变更报告-v4.7.1-终局审计.html').replace(/\\/g, '/');
+// 跨平台安全（2026-10-14）：报告文件名含中文，手工拼接 file:// 在 Linux CI 上可能因
+// URI 编码差异加载失败。用 pathToFileURL 生成规范 URL。
+const FILE = pathToFileURL(path.resolve('变更报告-v4.7.1-终局审计.html')).href;
 let pass = 0, fail = 0;
 function assert(c, m) { if (!c) throw new Error(m); }
 async function test(name, fn) {
