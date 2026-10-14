@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ChatTTS",
-  "version": "4.7.0",
+  "version": "4.7.1",
   "identifier": "com.chattts.desktop",
   "build": {
     "frontendDist": "../dist"
@@ -26,11 +26,17 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": [
+      "msi",
+      "nsis"
+    ],
     "category": "Utility",
     "shortDescription": "纯前端 AI 对话 + 文本转语音 + 整页朗读",
     "longDescription": "在线聊天转语音桌面版：三级降级链（在线 F5-TTS → 本地中文 WASM Kokoro → 浏览器语音）+ 引擎1.5 本地中文合成 + 断网可用。",
-    "icon": ["icons/icon.ico", "icons/icon.png"]
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
   },
   "plugins": {}
 }

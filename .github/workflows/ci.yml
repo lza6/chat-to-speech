@@ -90,7 +90,7 @@ jobs:
           node -e 'const fs=require("fs");const h=fs.readFileSync("demo.html","utf8");const s=h.match(/<script type="module">([\s\S]*?)<\/script>/i)||h.match(/<script>([\s\S]*?)<\/script>/i);if(!s)process.exit(1);fs.writeFileSync(".ci-check.js",s[1])'
           node --check .ci-check.js
           rm -f .ci-check.js
-          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs e2e-test-ssml.cjs e2e-test-a11y.cjs e2e-test-perf.cjs e2e-test-avail.cjs
+          node --check tts-zh.js verify-acceptance.cjs e2e-test.cjs e2e-test-sw.cjs e2e-test-cfg.cjs e2e-test-zh.cjs e2e-test-wizard.cjs e2e-test-ssml.cjs e2e-test-a11y.cjs e2e-test-perf.cjs e2e-test-avail.cjs e2e-test-v47.cjs e2e-test-p0-deadbtn.cjs e2e-test-report.cjs
 
       - name: Acceptance ledger gate (verify-acceptance --strict)
         run: node verify-acceptance.cjs --strict
@@ -136,9 +136,9 @@ jobs:
       - name: E2E shard ${{ matrix.shard }} of 2
         run: |
           if [ "${{ matrix.shard }}" = "1" ]; then
-            node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-a11y.cjs
+            node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-a11y.cjs && node e2e-test-p0-deadbtn.cjs
           else
-            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-perf.cjs && node e2e-test-avail.cjs
+            node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-perf.cjs && node e2e-test-avail.cjs && node e2e-test-v47.cjs && node e2e-test-report.cjs
           fi
 
       - name: Acceptance ledger update

@@ -53,13 +53,16 @@ function makeWav(seconds = 2) {
   };
 
   // === T_VER_1: 版本徽章与真源一致（X-1） ===
-  await test('T_VER_1 版本徽章 == __chattts.version，且默认中文', async () => {
+  // 修复（2026-10-14）：原断言硬编码 '4.7.0'，每次升版必挂 —— 与 P-1「版本真源治理」自相矛盾。
+  // 改为读 VERSION 真源文件，使本用例在任何版本下都有效。
+  const EXPECT_VER = require('node:fs').readFileSync(require('node:path').join(__dirname, 'VERSION'), 'utf8').trim();
+  await test('T_VER_1 版本徽章 == __chattts.version == VERSION 真源，且默认中文', async () => {
     const page = await newReadyPage(ctx);
     try {
       const info = await page.evaluate(() => ({
         badge: (document.getElementById('nav-badge') || {}).textContent, ver: window.__chattts.version, lang: document.documentElement.lang
       }));
-      assert(info.ver === '4.7.0', '__chattts.version 应为 4.7.0，实际=' + info.ver);
+      assert(info.ver === EXPECT_VER, '__chattts.version 应为 VERSION 真源 ' + EXPECT_VER + '，实际=' + info.ver);
       assert(info.badge === 'v' + info.ver, '徽章应显示 v' + info.ver + '，实际=' + info.badge);
       assert(/^zh/i.test(info.lang), '默认应为中文，实际=' + info.lang);
     } finally { await page.close(); }

@@ -65,7 +65,15 @@ npm run serve          # 监听 8765
 - **E7 多语言界面 i18n**：🌐 切换 zh/en；全部静态界面文案走 `data-i18n` 批量扫描（含 placeholder/aria-label/title）；`setStatus/showNotice` 中央状态文案精确翻译（未覆盖的动态长尾保持中文回退，诚实披露）；跟随 `navigator.language`；同步 `UNCLOSEAI_LANGUAGE`。**性能优化**：`applyI18n` 只在值变化时写 DOM，避免首屏批量 textContent 触发 layout 标脏（实测 FCP 2944ms→1892ms）。
 - **X-1 版本徽章真源化**：导航徽章 `v4.6`（硬编码）→ 运行时读 `__chattts.version`（真源一致，永不漂移）。
 - **V5-11 播放状态机（P0 前置落地）**：新增 `nextPlayState` 纯函数 + `playState` 单一状态源（idle/preparing/synthesizing/playing/paused/errored/stopped/completed）。**修复 P-13**：`playBlob` 返回 `'error'` 现在是引擎1 的失败终结态（抛给降级链 + 状态栏明示“播放失败”），**不再被静默当作“播放完毕”**；**修复 P-14**：speak 竞态与 stop/blocked/error 三态收敛到状态机。
-- **测试基线**：新增 `unit-test-v47.cjs`（7 项：U_PLAY_1-5 + U_SPEED_1-2）+ `e2e-test-v47.cjs`（8 项：T_VER_1/T_I18N_1/T_SPEED_1/T_VIZ_1-2/T_SR_1-2/T_AUD_1，外部端点用 Playwright 路由替身模拟），全量回归 **116/116 PASS**（E2E 59 + 单元 57）。
+- **测试基线**：新增 `unit-test-v47.cjs`（10 项：U_PLAY_1-8 + U_SPEED_1-2）+ `e2e-test-v47.cjs`（8 项：T_VER_1/T_I18N_1/T_SPEED_1/T_VIZ_1-2/T_SR_1-2/T_AUD_1，外部端点用 Playwright 路由替身模拟），全量回归 **126/126 PASS**（E2E 66 + 单元 60）。
+
+## v4.7.1 修复（2026-10-14，真实浏览器验证）
+
+- **P0 死按钮修复**：`🧾 透明时间线` / `🧠 记忆` 两个顶部按钮点击零反应（v4.6 把面板收进 `#data-panel` 后，wiring 仍在找已不存在的 `#timeline-panel`/`#memory-panel`，`if (!btn || !panel) return;` 直接返回）；导航 `时间线`（`#timeline-panel`）与品牌 `回到顶部`（`#top`）两个锚点指向不存在的元素。**浏览器实测从 4 项失败 → 5 项全绿**（新增 `e2e-test-p0-deadbtn.cjs`）。
+- **P0 跨面板污染修复**：`wzWireWizard` 用全局 `document.querySelectorAll('.wizard-tab')`，而 `#data-panel` 复用同一对 class → 在场景向导点 tab 会把数据管理的 pane 静默 `display:none`（实测 `timeline: block → none`，tab 仍高亮）。改为作用域限定 `#wizard-panel`。
+- **P1 静默成功修复**：在线合成路径 `playBlob` 返回 `'blocked'`（自动播放被浏览器拦截）时循环 break 后仍 `return 'ok'` → 用户什么都没听到却被报"播放完毕"。新增 `playResultToChainResult` 纯函数单点映射，`blocked`/未预期值一律不再当成功（U_PLAY_6/7/8 守护）。
+- **CI 覆盖缺口修复**：`e2e-test-v47.cjs`（8 项）此前**只在本地跑、CI 未执行**；现已纳入 shard 2。
+- **dist 同步修复**：`dist/index.html` 停留在 v4.7.0，缺 v4.7.1 全部修复，CI `diff -q` 必失败；已重新同步。
 - **测试确定性收口**：`e2e-test.cjs` T4/T8 由固定 `waitForTimeout(4000)` 单次断言改为**轮询断言**（v4.6.3 铁则）；`e2e-test-perf.cjs` 导航不依赖被第三方网络破坏的 `load` 事件（改为 `domcontentloaded` + 显式等应用就绪）——两者 A/B 实测：v4.6.3 基线在本机同网络下同样失败/超时，纯环境敏感项，非产品回归。
 
 ## v4.5 核心升级（相对 v4.4）
@@ -189,11 +197,11 @@ npm run serve          # 监听 8765
 9. **场景向导 B3/B4/B5 为纯前端轻量实现**：任务看板/PPT 大纲/电商文案数据全部存 localStorage（无跨设备）；PPT 导出为 Markdown 大纲文本（非二进制 .pptx）；电商草稿不含真实发布动作（草稿→预览→确认门后续扩展）。
 10. **P2-4 语速实时调节仅浏览器引擎即时生效**：在线引擎/WASM 引擎语速在合成时确定，朗读中拖动滑块对它们需下一段生效；浏览器引擎（引擎2）即时改 rate。
 
-## 测试基线（v4.7.0 真实复跑，2026-09-17）
+## 测试基线（v4.7.1 真实复跑，2026-10-14）
 
 | 套件 | 文件 | 项数 | 真实通过 |
 |------|------|------|---------|
-| E2E 主套件 | `e2e-test.cjs` | T1-T17 = 17 项 | ✅ 17/17 PASS |
+| E2E 主套件 | `e2e-test.cjs` | T1-T17 + T3b = 18 项 | ✅ 18/18 PASS |
 | E2E SW 跨域 | `e2e-test-sw.cjs` | T_SW_1-3 = 3 项 | ✅ 3/3 PASS |
 | E2E 配置中心 | `e2e-test-cfg.cjs` | T_CFG_1-5 = 5 项 | ✅ 5/5 PASS |
 | E2E 引擎1.5 | `e2e-test-zh.cjs` | T_ZH_1-4 = 4 项 | ✅ 4/4 PASS |
@@ -211,8 +219,9 @@ npm run serve          # 监听 8765
 | 单元 记忆三层 | `unit-test-memory.cjs` | B1_1-4 项 | ✅ 4/4 PASS |
 | 单元 场景向导 | `unit-test-wizard.cjs` | WZ_1-6 项 | ✅ 6/6 PASS |
 | 单元 SSML/分块 | `unit-test-ssml.cjs` | U_SPLIT 1-4 + U_SSML 1-3 = 7 项 | ✅ 7/7 PASS |
-| 单元 状态机/语速 | `unit-test-v47.cjs` | U_PLAY_1-5 + U_SPEED_1-2 = 7 项 | ✅ 7/7 PASS |
-| **总计** | — | **116 项** | **✅ 116/116 PASS** |
+| E2E P0 死按钮 | `e2e-test-p0-deadbtn.cjs` | T_P0_1/2/3/3b/4/5 = 6 项 | ✅ 6/6 PASS |
+| 单元 状态机/语速 | `unit-test-v47.cjs` | U_PLAY_1-8 + U_SPEED_1-2 = 10 项 | ✅ 10/10 PASS |
+| **总计** | — | **126 项** | **✅ 126/126 PASS** |
 
 复跑命令：
 

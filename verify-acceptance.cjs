@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 
-const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs', 'e2e-test-ssml.cjs', 'e2e-test-a11y.cjs', 'e2e-test-perf.cjs', 'e2e-test-avail.cjs', 'e2e-test-v47.cjs'];
+const E2E_FILES = ['e2e-test.cjs', 'e2e-test-sw.cjs', 'e2e-test-cfg.cjs', 'e2e-test-zh.cjs', 'e2e-test-wizard.cjs', 'e2e-test-ssml.cjs', 'e2e-test-a11y.cjs', 'e2e-test-perf.cjs', 'e2e-test-avail.cjs', 'e2e-test-v47.cjs', 'e2e-test-p0-deadbtn.cjs'];
 const UNIT_FILES = ['unit-test.cjs', 'unit-test-pool.cjs', 'unit-test-cfg.cjs', 'unit-test-zh.cjs', 'unit-test-health.cjs', 'unit-test-memory.cjs', 'unit-test-wizard.cjs', 'unit-test-ssml.cjs', 'unit-test-v47.cjs'];
 
 function countPattern(src, re) { return (src.match(re) || []).length; }

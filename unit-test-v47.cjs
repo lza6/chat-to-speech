@@ -68,6 +68,42 @@ test('U_PLAY_5 非法转移返回 null（防御性）', () => {
   assert.equal(nextPlayState('idle', 'wat'), null);
 });
 
+// ===== V5-11 补丁：播放结果 → 合成链返回值（与 demo.html playResultToChainResult 同步）=====
+// 根因（2026-10-14 实测）：在线合成路径 playBlob 返回 'blocked'（自动播放被拦）时循环 break
+// 后仍 return 'ok'，speak() 随即显示"播放完毕。"——用户什么都没听到却被报告成功。
+// 这是 P-13「失败被静默当成功」的同类残留：状态机定义了 blocked→stopped 却从未调用。
+// 修复方式：把「播放结果 → 链返回值」的映射抽为纯函数，单点决策并纳入测试。
+function playResultToChainResult(r) {
+  if (r === 'ended') return { chain: 'ok', playAction: 'done' };
+  if (r === 'stopped') return { chain: 'stopped', playAction: 'stopped' };
+  if (r === 'blocked') return { chain: 'blocked', playAction: 'blocked' };
+  return { chain: 'error', playAction: 'error' }; // 'error' 及一切未预期值
+}
+
+test('U_PLAY_6 blocked（自动播放被拦）不得被当作成功', () => {
+  const r = playResultToChainResult('blocked');
+  assert.equal(r.chain, 'blocked');
+  assert.notEqual(r.chain, 'ok', 'blocked 绝不能映射为 ok —— 用户没听到声音');
+  assert.equal(r.playAction, 'blocked');
+  assert.equal(nextPlayState('playing', r.playAction), 'stopped');
+});
+
+test('U_PLAY_7 未预期返回值一律降级为 error（防御性，禁止静默成功）', () => {
+  for (const bad of ['error', undefined, null, '', 'weird', 0, {}]) {
+    const r = playResultToChainResult(bad);
+    assert.equal(r.chain, 'error', '未预期值 ' + JSON.stringify(bad) + ' 必须降级为 error');
+    assert.equal(r.playAction, 'error');
+  }
+});
+
+test('U_PLAY_8 正常结束与用户停止的映射不互相污染', () => {
+  assert.equal(playResultToChainResult('ended').chain, 'ok');
+  assert.equal(playResultToChainResult('stopped').chain, 'stopped');
+  // stopped 不能触发 error 态（用户主动停止不是失败）
+  assert.equal(playResultToChainResult('stopped').playAction, 'stopped');
+  assert.equal(nextPlayState('playing', 'stopped'), 'stopped');
+});
+
 test('U_SPEED_1 clampSpeed 钳位到 0.25-4', () => {
   assert.equal(clampSpeed('0.1'), 0.25);
   assert.equal(clampSpeed('5'), 4);

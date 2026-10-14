@@ -57,27 +57,64 @@ async function until(fn, ms = 15000) {
     assert(await page.isVisible('#read-page-btn'), '整页朗读按钮不可见');
   });
 
-  // === T3: 端点徽章状态（端点宕机应为 down）===
+  // === T3: 端点徽章状态（用路由拦截制造 502 / 200，不依赖外部端点真实状态）===
+  // 根因（2026-10-14）：原断言写死"端点 502 宕机"，但实测 speech.ai.unturf.com
+  // 的 /v1/voices 已恢复 200 + 42 语音 → 徽章正确显示 ep-up，测试反而误报失败。
+  // 徽章是"反映端点状态"的组件，正确定义是双向的：拦截成 502 必须 ep-down，
+  // 放行 200 必须 ep-up。用独立 page 隔离两条路径，互不污染。
   await test('T3 端点徽章正确反映 502 宕机', async () => {
-    await page.waitForTimeout(2000); // 等 probeTtsEndpoint 完成
-    const cls = await page.getAttribute('#endpoint-badge', 'class');
-    console.log('   徽章 class: ' + cls);
-    // 端点宕机应为 ep-down
-    assert(/ep-down/.test(cls), '端点 502 宕机但徽章未标 ep-down，class=' + cls);
+    const p3 = await ctx.newPage();
+    await p3.route('**/v1/voices**', r => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"bad gateway"}' }));
+    await p3.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+    const downCls = await until(async () => {
+      const c = await p3.getAttribute('#endpoint-badge', 'class');
+      return /ep-down/.test(c || '') ? c : null;
+    }, 15000);
+    console.log('   拦截 502 徽章 class: ' + downCls);
+    assert(downCls, '端点被拦截为 502 但徽章未标 ep-down（class=' + await p3.getAttribute('#endpoint-badge', 'class') + '）');
+    await p3.close();
   });
 
-  // === T4: 闭环②降级到离线引擎（端点宕机时）===
-  await test('T4 闭环②端点宕机→自动降级离线朗读', async () => {
-    await page.fill('#tts-input', '你好，这是测试文本。');
-    await page.click('#speak-btn');
-    // A2 多端点健康池：探测(≤5s) + 失败降级链(engine1→1.5→2) 时序受外部端点网络影响，
-    // 按 v4.6.3 铁则改用轮询断言（固定 sleep 是 flaky 源），最多等 15s。
-    const status = await until(async () => {
-      const s = await page.textContent('#tts-status');
-      return /离线|切换|不可用|在线合成|播放完毕/.test(s) ? s : null;
+  await test('T3b 端点徽章正确反映 200 可用', async () => {
+    const p3b = await ctx.newPage();
+    await p3b.route('**/v1/voices**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ object: 'list', data: [{ id: 'tts-1-f5', voices: ['aria', 'clara'] }] }) }));
+    await p3b.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+    const upCls = await until(async () => {
+      const c = await p3b.getAttribute('#endpoint-badge', 'class');
+      return /ep-up/.test(c || '') ? c : null;
     }, 15000);
+    console.log('   放行 200 徽章 class: ' + upCls);
+    assert(upCls, '端点返回 200 但徽章未标 ep-up（class=' + await p3b.getAttribute('#endpoint-badge', 'class') + '）');
+    await p3b.close();
+  });
+
+  // === T4: 闭环②端点宕机→自动降级离线朗读 ===
+  // 根因（2026-10-14）：原断言的正则含"在线合成"，端点可达时它一出现即 PASS，
+  // 从未真正验证降级；而端点网络抖动时（CORS 失败 / 连接挂起）又会 15s 超时失败。
+  // 按铁则改为确定性场景：路由拦截 TTS 端点为 502，断言必须出现降级文案并走到终态。
+  await test('T4 闭环②端点宕机→自动降级离线朗读', async () => {
+    const p4 = await ctx.newPage();
+    await p4.route('**://speech.ai.unturf.com/**', r => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"bad gateway"}' }));
+    await p4.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+    await p4.waitForFunction(() => !!(window.__chattts && window.__chattts.version), null, { timeout: 10000 });
+    await p4.fill('#tts-input', '你好，这是测试文本。');
+    await p4.click('#speak-btn');
+    // 端点 502 → 探测失败 → 降级链（引擎1.5 WASM 或 引擎2 浏览器语音）→ 终态。
+    // 引擎1.5 需加载模型（本机实测 3-10s），故轮询窗口放到 45s。
+    const status = await until(async () => {
+      const s = await p4.textContent('#tts-status');
+      return /离线朗读完毕|离线朗读中|切换|不可用|试本地中文引擎/.test(s || '') ? s : null;
+    }, 45000);
     console.log('   状态: ' + status);
-    assert(status, '未正确降级，状态: ' + (await page.textContent('#tts-status')));
+    assert(status, '端点 502 后未正确降级，状态: ' + (await p4.textContent('#tts-status')));
+    // 必须真的走到终态（不是仅出现"试本地"就返回）
+    const final = await until(async () => {
+      const s = await p4.textContent('#tts-status');
+      return /朗读完毕|播放完毕/.test(s || '') ? s : null;
+    }, 45000);
+    console.log('   终态: ' + final);
+    assert(final, '降级后未走到朗读终态，状态: ' + (await p4.textContent('#tts-status')));
+    await p4.close();
   });
 
   // === T5: 字符计数 ===
@@ -119,11 +156,12 @@ async function until(fn, ms = 15000) {
     await page.fill('#tts-input', '快捷键测试。');
     await page.focus('#tts-input');
     await page.keyboard.press('Control+Enter');
-    // A2 探测(≤5s)+降级链；按 v4.6.3 铁则轮询（外部端点网络决定降级耗时），最多等 15s
+    // A2 探测(≤5s)+降级链；按 v4.6.3 铁则轮询（外部端点网络决定降级耗时）。
+    // 2026-10-14 修正：端点半死（连接挂起不返回）时需更长时间，窗口 15s → 45s
     const status = await until(async () => {
       const s = await page.textContent('#tts-status');
       return /离线|在线|播放|合成|不可用|朗读完毕/.test(s) ? s : null;
-    }, 15000);
+    }, 45000);
     // 朗读应已启动（状态变化）
     assert(status, 'Ctrl+Enter 未触发朗读，状态: ' + (await page.textContent('#tts-status')));
   });

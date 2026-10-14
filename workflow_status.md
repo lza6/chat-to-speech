@@ -640,7 +640,7 @@ $ node e2e-test-ssml.cjs
 
 > **E2E 铁则：每个用例独立 page（或 newContext）+ 显式等应用就绪 + 轮询等目标状态；禁止“固定 sleep 后断言”。** 共享页面 + 固定 sleep 是 flaky 的主要来源，且会把产品缺陷与测试缺陷混为一谈（本次已用“产品侧挂起复现”与“测试侧串扰复现”分别归因）。
 
-## 15. v4.7.0 落地台账（2026-09-17）—— 体验收口·续 + 播放状态机 P0（116/116 PASS）
+## 15. v4.7.0 落地台账（2026-09-17）—— 体验收口·续 + 播放状态机 P0（116/116 PASS，历史基线）
 
 > 依据《计划书/下一步改进指南.md》（v4.6.3→v8+ 第二版）。证据等级：`已验证` = 本机真实复跑。
 
@@ -665,7 +665,7 @@ $ node e2e-test-ssml.cjs
 | e2e-test.cjs（T4/T8 改轮询断言）| **17/17 PASS** |
 | e2e-test-sw / cfg / zh / wizard / ssml / a11y / perf / avail | **3+5+4+6+4+4+4+4 PASS** |
 | e2e-test-v47.cjs（新增 8 项）| **8/8 PASS** |
-| 台账门禁 | `node verify-acceptance.cjs --strict` → **TOTAL 116 PASS**（E2E≥59 且 单元≥56 且版本一致）|
+| 台账门禁 | `node verify-acceptance.cjs --strict` → **TOTAL 116 PASS**（历史；当前基线见 §16 = 126）|
 
 ### 15.3 关键根因与归因（A/B 实测，非猜测）
 
@@ -692,3 +692,108 @@ $ node e2e-test-ssml.cjs
 - **a11y/perf 的 CI 复跑**：本机已全绿（perf FCP 除外，见上）。
 
 ---
+
+---
+
+## 16. v4.7.1 终局审计落地台账（2026-10-14）—— P0 死按钮 / 跨面板污染 / 静默成功（126/126 PASS）
+
+> 依据：用户"终局闭环总审计 / 主动补位 / 真实验收 / 深度反向修复"指令。
+> 方法：2 个独立侦察代理并行（①计划书节点落地核验 ②假功能与交互断链扫描）+ 主控亲自浏览器实测复核。
+> 证据等级：`已验证` = 本机 Playwright 真实复跑；`静态确认` = 代码直读。
+
+### 16.1 审计发现（按严重级）
+
+| # | 级别 | 问题 | 影响 | 根因 | 处置 |
+|---|------|------|------|------|------|
+| A-1 | **P0** | `🧾 透明时间线` 按钮点击零反应，`aria-expanded` 恒 false | 首屏最显眼工具栏按钮失效，用户第一下就点，静默无反馈 | v4.6 把 timeline 收进 `#data-panel` 的 tab 结构，但 `wireTimelineUI` 仍 `getElementById('timeline-panel')`（该 id 已不存在）→ `if (!btn \|\| !panel) return;` | 改为 `activateDataTab('timeline')` + 滚动到位（`demo.html`）|
+| A-2 | **P0** | `🧠 记忆` 按钮点击零反应 | 同上 | `wireMemoryUI` 找已不存在的 `#memory-panel` | 改为 `activateDataTab('memory')`；`.memory-tab` 绑定移到 `#data-panel` 作用域 |
+| A-3 | **P0** | 导航`时间线`锚点 `#timeline-panel` / 品牌`回到顶部`锚点 `#top` 指向不存在的元素 | 点击无跳转，用户以为页面卡死 | HTML 重构后锚点未同步 | `#timeline-panel`→`#data-panel`；`#top`→`#speak` |
+| A-4 | **P0** | 场景向导切 tab 会把数据管理的 pane 静默 `display:none` | 两处共用 `.wizard-tab`/`.wizard-body`，全局 `querySelectorAll` 跨面板污染；tab 仍高亮但内容消失，状态自相矛盾 | `wzWireWizard` 未限定作用域 | 限定 `#wizard-panel`；`#data-panel` 由新增 `wireDataPanelTabs` 独立管理 |
+| A-5 | **P1** | 在线合成 `blocked`（自动播放被拦）被静默当成功 | 用户什么都没听到，状态栏却显示"播放完毕。" | `playBlob` 返回 `'blocked'` → 循环 break → 仍 `return 'ok'`；状态机定义了 `blocked:'stopped'` 却从未调用 | 新增纯函数 `playResultToChainResult` 单点映射；`blocked`/未预期值一律不再当成功 |
+| A-6 | **P0** | `dist/index.html` 与 `demo.html` 不同步（缺 v4.7.1 全部修复）| CI `diff -q` 必失败，推送即红 | 改 demo.html 后未同步 | `cp demo.html dist/index.html`，`diff -q` PASS |
+| A-7 | **P1** | `e2e-test-v47.cjs`（8 项）CI 从未执行 | 8 项测试长期只在本机跑，CI 覆盖假象 | shard 分片列举遗漏 | 纳入 shard 2 + `node --check` 列表 |
+| A-8 | **P2** | README/workflow_status 声称 116，实测已 125 | 文档漂移，门禁告警 | 新增测试后未同步 | 四件套数字统一为 126 |
+
+### 16.2 主线修复（TDD）
+
+**RED → GREEN 证据**：
+
+- 新增单元 `U_PLAY_6/7/8`（`unit-test-v47.cjs`）：锁定 `blocked` 不得映射为 `ok`、未预期值一律 `error`、`stopped` 不污染 `error`。
+- 新增 E2E `e2e-test-p0-deadbtn.cjs` 5 项：修复前跑出 **4 项失败**（真实浏览器），修复后 **5/5 PASS**。
+  失败证据（修复前）：`aria-expanded: false → false`（按钮无响应）；`#timeline-panel exists:false`；`#top exists:false`；`timeline: block → none`（跨面板污染）。
+
+### 16.3 真实复跑结果（2026-10-14 本机）
+
+| 套件 | 结果 |
+|------|------|
+| `e2e-test.cjs` | **18/18 PASS** |
+| `e2e-test-p0-deadbtn.cjs`（新增）| **5/5 PASS** |
+| `e2e-test-wizard.cjs` | **6/6 PASS**（跨面板污染修复后无回归）|
+| `e2e-test-a11y.cjs` | **4/4 PASS** |
+| `e2e-test-v47.cjs` | **8/8 PASS** |
+| 其余 E2E（sw/cfg/zh/ssml/perf/avail）| 全 PASS |
+| 单元 9 套件 | **60/60 PASS**（v47 由 7→10）|
+| 台账门禁 | `node verify-acceptance.cjs --strict` → **TOTAL 126 PASS** + VERSION 四处一致 |
+
+### 16.4 独立审计结论：v5 批次真实落地率 1/15（6.7%）
+
+独立侦察代理对 `v5待办清单.md` 逐节点 grep 核验，并经主控复核：
+
+- **已落地**：仅 V5-11（播放状态机）。
+- **未落地**：14 项（V5-1…V5-10、V5-12…V5-15）。
+- **关键发现**：23 个 V5 验收测试 ID **仅存在于 `v5待办清单.md` 自身**，全部测试套件中 0 存在。
+- **审计陷阱警示**（非常重要）：`indexedDB`/`BM25`/`Worker`/`queue`/`kind`/`resume` 六个词在项目中有命中，但来源分别是**第三方库 kokoro-js**、**Rust 编译产物符号表**、**pLimit 并发池内部变量**、**Service Worker**——盲目 grep 会把它们误判为"部分落地"。下一轮验收证据必须指向**调用链**而非标识符计数。
+- **规划漂移**：`pptxgenjs`/`OfflineAudioContext`/`__chattts.speak` 在**三代文档**中反复登记却始终未实施（`参考的结果计划指南` → `优化计划/下一步改进指南` → `计划书/下一步改进指南`）。
+
+### 16.5 冲突提示（下一轮必读）
+
+`demo.html:1154` 注释当前写着"Chrome onboundary 不可靠故用块级定时推进"——**主动否决了 V5-13 所依赖的 `utterance.onboundary` 路径**。若下一轮据 V5-13 实施，须先推翻该判断所依据的结论，否则会重复 P-18 根因。
+
+### 16.6 剩余待办（诚实披露）
+
+- v5 全部 14 项未落地节点（依赖顺序：V5-1 数据层为地基）。
+- E10 CSP 收敛：需用户在两方案（拆 app.js / sha256 哈希）间决策，明确要求不发中间态版本。
+- 引擎1.5 真机出声、iOS Safari 真机：外部受限，`待验证`。
+- 本机 `speech.ai.unturf.com` / `uncloseai.com` 时通时断 → 涉及外部端点的断言必须用路由拦截。
+
+### 16.7 独立审查轮次（2026-10-14）—— 审查线程判 FAIL，主线程修复后复验
+
+> 按用户要求启动独立审查线程（只读、不改代码），从**需求完整性/逻辑正确性/边界情况/代码质量/测试覆盖/实际运行结果**六维验证。
+> **审查结论：FAIL** —— 抓到一处主线程自己引入的 P0，以及若干 P1/P2。
+
+| # | 级别 | 审查发现 | 主线程确认 | 修复 |
+|---|------|---------|-----------|------|
+| R-1 | **P0** | `playResultToChainResult` 在 demo.html **只有调用没有定义**（函数只写进了 unit-test-v47.cjs 的副本）→ 在线播放走到该行抛 `ReferenceError` 被 catch 吞成"端点降级" | **确认属实**（`grep` 定义数 0、调用数 1）。这正是本轮要修的 P1「blocked 静默当成功」，其核心 helper 却未进产品代码 | 在 `nextPlayState` 旁补定义（与测试副本逐字一致），并挂到 `window.__chattts` 导出 |
+| R-2 | **P0** | 新增的 `playState.apply(m.playAction)` 在在线路径是**空操作**——playState 全程停在 `preparing`，而 `done/stopped/blocked` 对 `preparing` 都是非法转移，`apply` 返回 false 被静默吞；且 `demo.html:2050` 注释称"状态已是 stopped"与事实不符 | **确认属实**（全代码无 `apply('playing')`） | 在 `await playBlob` **之前**补 `playState.apply('playing')`，使终结态转移合法；更正失实注释 |
+| R-3 | **P1** | `pushTimeline` 仍判 `#timeline-panel`（v4.6 后已不存在）→ 时间线**实时追加静默失效**（实测 `#timeline-list` 子节点数不增） | **确认属实** | 改判 `#data-panel` 的 timeline pane + tab 选中态 |
+| R-4 | **P1** | `T_P0_4` 假绿风险：若 `#data-panel` 缺失，`dataBefore=[]` → for 零次迭代 → 断言空转通过 | **确认属实** | 加 `assert(dataBefore.length > 0)` 前置守卫 + 数量一致性断言 |
+| R-5 | **P1** | `T_P0_1/T_P0_2` 断言过弱：只判 `aria-expanded` 变化，无法发现"面板实际未可见/内容未渲染" | **确认属实** | 补断言：目标 pane `display !== none`、tab `aria-pressed=true`、容器存在、内容已渲染、导出/清空按钮存在 |
+| R-6 | **P2** | `activateDataTab` 的 `catch (_) {}` 静默吞异常，与 CLAUDE.md「永不静默吞错」相悖 | 确认 | 改为 `pushTimeline` 记录失败原因 |
+| R-7 | **P2** | 双触发：`activateDataTab` 内已渲染，外层又调一次 `renderTimeline()`/`memoryRender()` | 确认 | 去掉外层重复调用 |
+
+**新增防假绿测试 `T_P0_5`**（直连 `window.__chattts` 断言生产代码真的导出了该函数且语义正确）。
+**反向验证测试有效性**：临时删除函数定义 → `T_P0_5` 失败且 6 项全挂（module 初始化崩溃），证明该测试真能捕获此类缺陷，非摆设。
+
+### 16.8 修复过程中暴露的连锁缺陷（A/B 实测归因，非猜测）
+
+| # | 现象 | 归因方法 | 结论 |
+|---|------|---------|------|
+| C-1 | 修好 `pushTimeline` 实时渲染后，`e2e-test-a11y.cjs` 从 4/4 变 2/4 | **A/B**：临时把 `visible` 置 false → a11y 恢复 4/4 | **不是回归，是暴露**：时间线项此前因列表不刷新而从不进入扫描视野，掩盖了真实对比度缺陷 |
+| C-2 | 对比度缺陷本体 | 精确计算 | `.tl-ts` `#94a3b8` on `#f7f8fa` = **2.41:1**（门槛 4.5）；`.tl-kind` `#6366f1` on `#e2e4f9` = **3.55:1** |
+| C-3 | 修复方式 | 按项目既有 `--success-ink`/`--danger-ink` 模式 | 新增 `--subtle-ink`（亮 `#5b6472`=5.63 / 暗 `#9aa4b5`=5.85）、`--accent-ink`（亮 `#4f46e5`=5.00 / 暗 `#a5b4fc`=6.46），全部经计算验证 ≥4.5:1 |
+| C-4 | `e2e-test-zh.cjs` 随机挂红（1/3 次） | 读失败输出 | **测试缺陷**：`T_ZH_3` 断言"关闭引擎1.5 后落引擎2/3"，隐含假设端点宕机；端点可用时走引擎1 在线路径（**这是正确行为**）却被判失败 |
+| C-5 | 同套件计数标签自相矛盾（"4 通过, 1 失败 / 4 项"） | 读源码 | 打印语句 `results.length` 用了两次，应为 `results.length - fails.length` |
+
+**C-4/C-5 修复**：context 级路由拦截统一制造确定性 502 场景；共享页显式导航+就绪等待（T_ZH_1 改用独立 page 后遗留）；计数标签修正。
+**稳定性验证**：`e2e-test-zh.cjs` **连跑 5 次全绿**（修复前 3 次中 1 次挂红）。
+
+### 16.9 最终复跑（2026-10-14）
+
+| 套件 | 结果 |
+|------|------|
+| E2E 11 套件 | **66/66 PASS**（18+3+5+4+6+4+4+4+4+8+6）|
+| 单元 9 套件 | **60/60 PASS** |
+| 合计 | **126/126 PASS** |
+| 台账门禁 | `node verify-acceptance.cjs --strict` → **STRICT: 文档声称与实测一致 (126)** + VERSION 四处一致 |
+| dist 同步 | `diff -q demo.html dist/index.html` → IDENTICAL |
+| 变更报告测验 | `node verify-report.cjs` → **10/10 PASS**（全对/全错/部分/重做四路径）|

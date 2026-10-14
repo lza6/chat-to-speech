@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>变更报告 — v4.7.1 终局审计修复（2026-10-14）</title>
+<style>
+:root{
+  --bg:#f8fafc; --surface:#ffffff; --surface-2:#f1f5f9;
+  --ink:#0f172a; --muted:#475569; --subtle:#94a3b8;
+  --accent:#6366f1; --accent-2:#8b5cf6;
+  --ok:#047857; --ok-bg:#ecfdf5; --warn:#b45309; --warn-bg:#fffbeb;
+  --bad:#b91c1c; --bad-bg:#fef2f2; --info:#1d4ed8; --info-bg:#eff6ff;
+  --border:#e2e8f0; --border-strong:#cbd5e1;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#0b1020; --surface:#151b2e; --surface-2:#1b2236; --ink:#e8edf7; --muted:#a3aec4; --subtle:#6b7688;
+    --ok:#6ee7b7; --ok-bg:#062e24; --warn:#fcd34d; --warn-bg:#2e2408; --bad:#fca5a5; --bad-bg:#2e0f0f;
+    --info:#93c5fd; --info-bg:#0c1a33; --border:#273049; --border-strong:#38425c; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.7;font-size:16px}
+.wrap{max-width:960px;margin:0 auto;padding:48px 24px 96px}
+header.hero{border-bottom:3px solid var(--accent);padding-bottom:28px;margin-bottom:40px}
+.kicker{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:clamp(1.9rem,4.5vw,2.7rem);line-height:1.15;margin:.35em 0 .3em;letter-spacing:-.02em;font-weight:800}
+.sub{color:var(--muted);font-size:1.02rem;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.tag{font-size:.76rem;padding:5px 12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);font-weight:600}
+.tag.hot{background:var(--bad-bg);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.tag.good{background:var(--ok-bg);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+h2{font-size:1.5rem;margin:2.6em 0 .7em;letter-spacing:-.01em;font-weight:750;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+h3{font-size:1.12rem;margin:1.9em 0 .5em;font-weight:700}
+p{margin:.7em 0}
+code{font-family:var(--mono);font-size:.875em;background:var(--surface-2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+pre{background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.6}
+pre code{background:none;border:none;padding:0;font-size:inherit}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card.p0{border-left:4px solid var(--bad)}
+.card.p1{border-left:4px solid var(--warn)}
+.card.ok{border-left:4px solid var(--ok)}
+.card h4{margin:0 0 .5em;font-size:1.03rem;font-weight:750}
+.sev{display:inline-block;font-family:var(--mono);font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:4px;margin-right:8px;vertical-align:2px}
+.sev.p0{background:var(--bad);color:#fff}
+.sev.p1{background:var(--warn);color:#fff}
+.sev.p2{background:var(--info);color:#fff}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.9rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border)}
+th{background:var(--surface-2);font-weight:700;font-size:.82rem;letter-spacing:.02em}
+td code{font-size:.82em}
+.before-after{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+@media (max-width:640px){.before-after{grid-template-columns:1fr}}
+.ba{border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:.78rem;line-height:1.55}
+.ba.bad{background:var(--bad-bg);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent);color:var(--bad)}
+.ba.good{background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);color:var(--ok)}
+.ba .lbl{display:block;font-weight:800;margin-bottom:6px;font-family:var(--sans);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+.callout{background:var(--info-bg);border:1px solid color-mix(in srgb,var(--info) 25%,transparent);border-left:4px solid var(--info);border-radius:8px;padding:14px 18px;margin:18px 0;font-size:.94rem}
+.callout.warn{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 30%,transparent);border-left-color:var(--warn)}
+ul,ol{padding-left:1.4em}
+li{margin:.35em 0}
+/* ===== 测验 ===== */
+#quiz{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:26px 24px;margin-top:20px}
+.q{margin:0 0 26px;padding-bottom:22px;border-bottom:1px dashed var(--border)}
+.q:last-of-type{border-bottom:none}
+.q .stem{font-weight:650;margin-bottom:12px;display:flex;gap:10px}
+.q .num{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:.8rem;font-weight:800}
+.opt{display:block;padding:10px 14px;margin:7px 0;border:1px solid var(--border-strong);border-radius:8px;cursor:pointer;transition:.16s;font-size:.93rem}
+.opt:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.opt input{margin-right:10px;accent-color:var(--accent)}
+.opt.correct{border-color:var(--ok);background:var(--ok-bg);color:var(--ok);font-weight:600}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.opt.locked{cursor:default;pointer-events:none}
+.explain{display:none;margin-top:10px;padding:10px 14px;border-radius:8px;background:var(--surface-2);font-size:.87rem;color:var(--muted);border-left:3px solid var(--accent)}
+.explain.show{display:block}
+.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:20px}
+button{font-family:inherit;font-size:.95rem;font-weight:700;padding:12px 24px;border-radius:9px;border:1px solid transparent;cursor:pointer;transition:.16s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--border-strong)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+#score{margin-top:20px;padding:18px 22px;border-radius:10px;font-weight:700;display:none;font-size:1.02rem}
+#score.show{display:block}
+#score.pass{background:var(--ok-bg);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 35%,transparent)}
+#score.fail{background:var(--bad-bg);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 35%,transparent)}
+.progress{height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-bottom:22px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .3s}
+footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--border);color:var(--subtle);font-size:.84rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Change Report · v4.7.1</div>
+  <h1>终局审计修复：4 个 P0 死按钮、跨面板污染、静默成功</h1>
+  <p class="sub">2026-10-14 · 在线聊天转语音（online-chat-tts）· 基于真实浏览器实测，非静态推断</p>
+  <div class="meta">
+    <span class="tag hot">4 × P0 已修</span>
+    <span class="tag">1 × P1 已修</span>
+    <span class="tag good">125/125 PASS</span>
+    <span class="tag">12 文件变更</span>
+    <span class="tag">+新增 8 项测试</span>
+  </div>
+</header>
+
+<h2>一、上下文：问题是在什么背景下被发现的</h2>
+
+<p>这个项目是一个<strong>纯前端、单文件</strong>的「聊天 + 朗读」工具（<code>demo.html</code>，3132 行）。它的承诺是：无注册、无 API Key、可静态托管、离线可用。VERSION 停在 <code>4.7.0</code>，此前已积累 116 项测试基线。</p>
+
+<p>本次会话的任务不是「加功能」，而是<strong>终局审计</strong>——把项目当成明天就要交付给真实用户的产品，重新审视一遍。方法上做了两件关键的事：</p>
+
+<ol>
+  <li><strong>派两个独立侦察代理并行扫描</strong>：一个逐节点核验规划文档里的功能是否真实落地；一个专找「看起来有、其实不能用」的假功能。</li>
+  <li><strong>不采信代理的结论，亲自用浏览器复现</strong>。这一条至关重要——静态 grep 说「按钮坏了」，和浏览器里点一下真的没反应，是两种证据等级。</li>
+</ol>
+
+<div class="callout">
+<strong>为什么必须亲自复现：</strong>审计代理报告说「<code>#timeline-panel</code> 不存在所以按钮是死的」。这是<em>静态确认</em>，不是<em>已验证</em>。项目自己的铁则写着「禁止静态确认冒充已验证」。所以我写了 <code>e2e-test-p0-deadbtn.cjs</code>，在真实 Chromium 里点击按钮、读 <code>aria-expanded</code>、量计算样式。结果显示 <strong>4 项失败</strong>——静态结论被真实运行坐实了。
+</div>
+
+<h2>二、直觉：为什么这些问题之前没被发现</h2>
+
+<p>四个 P0 有一个共同的、反直觉的特征：<strong>它们都是「静默失败」</strong>。</p>
+
+<p>按钮点击没反应，不会抛异常、不会报错、不变灰、不弹提示——它只是<em>什么都不发生</em>。而之前的 116 项测试全都通过，因为测试测的是「功能存在时是否工作」，而这些问题出在「功能接线断了」。</p>
+
+<div class="card p0">
+  <h4><span class="sev p0">P0</span>接线断了，但代码看起来完全正常</h4>
+  <p><code>wireTimelineUI()</code> 函数写得毫无破绽：取按钮、取面板、绑事件、切换 <code>aria-expanded</code>、重新渲染。逻辑自洽，读起来是对的。</p>
+  <p>它唯一的问题是第一行就 <code>return</code> 了：</p>
+<pre><code>const panel = document.getElementById('timeline-panel');
+if (!btn || !panel) return;   // ← panel 永远是 null，函数到此为止</code></pre>
+  <p>根因是 <strong>v4.6 的一次重构</strong>：为了治理「面板太多太乱」，把时间线和记忆收进了 <code>#data-panel</code> 的页签结构。HTML 改了，但这个 wiring 函数还在找已经不存在的旧 ID。<strong>重构漏网了。</strong></p>
+</div>
+
+<p>这解释了一个常见的困惑：为什么测试全绿但产品是坏的。因为<strong>测试的粒度和缺陷的粒度不匹配</strong>——测试验证的是纯函数和元素存在性，缺陷藏在「元素之间的连接」里。</p>
+
+<h2>三、做了什么：四处 P0 + 一处 P1</h2>
+
+<h3>P0-1 / P0-2：两个顶部按钮点了没反应</h3>
+
+<p><strong>症状</strong>：<code>🧾 透明时间线</code> 和 <code>🧠 记忆</code> 是工具栏上最显眼的两个按钮，点击后什么都不会发生。</p>
+
+<div class="before-after">
+  <div class="ba bad"><span class="lbl">修复前（真实浏览器）</span>aria-expanded: false → false<br>（点击后属性无变化，handler 未挂上）</div>
+  <div class="ba good"><span class="lbl">修复后</span>aria-expanded: false → true<br>面板滚动到位 + 内容渲染</div>
+</div>
+
+<p><strong>修法</strong>：不复活旧面板（那是走回头路），而是让按钮<strong>激活 <code>#data-panel</code> 里对应的页签</strong>并滚动到位。新增了一个共用函数 <code>activateDataTab(name)</code>：</p>
+
+<pre><code>function activateDataTab(name) {
+    const panel = document.getElementById('data-panel');
+    if (!panel) return false;
+    const tabs  = panel.querySelectorAll('.wizard-tab');
+    const panes = panel.querySelectorAll('.wizard-body');
+    tabs.forEach(t =&gt; t.setAttribute('aria-pressed', String(t.dataset.wtab === name)));
+    panes.forEach(p =&gt; { p.style.display = (p.dataset.wtabPane === name) ? 'block' : 'none'; });
+    // 内容随 tab 刷新（原逻辑寄生在向导的全局 handler 上，已拆出）
+    if (name === 'memory') memoryRender('persona');
+    else if (name === 'timeline') renderTimeline();
+    return true;
+}</code></pre>
+
+<h3>P0-3：两个导航锚点指向不存在的元素</h3>
+
+<p>导航栏的「时间线」链接 <code>href="#timeline-panel"</code>，品牌 logo 的「回到顶部」<code>href="#top"</code>——这两个 ID 在页面里都不存在。点击无跳转，用户会以为页面卡住了。</p>
+
+<table>
+<tr><th>锚点</th><th>修复前</th><th>修复后</th></tr>
+<tr><td>导航「时间线」</td><td><code>#timeline-panel</code>（不存在）</td><td><code>#data-panel</code>（存在）</td></tr>
+<tr><td>品牌「回到顶部」</td><td><code>#top</code>（不存在）</td><td><code>#speak</code>（存在）</td></tr>
+</table>
+
+<h3>P0-4：切换一个页签，把另一个面板的内容清空了</h3>
+
+<p>这是最隐蔽的一个。<code>#wizard-panel</code>（场景向导）和 <code>#data-panel</code>（数据管理）<strong>复用了同一对 CSS 类</strong> <code>.wizard-tab</code> / <code>.wizard-body</code>。而向导的 wiring 用的是全局选择器：</p>
+
+<pre><code>const tabs  = document.querySelectorAll('.wizard-tab');   // ← 抓到两个面板的所有 tab
+const panes = document.querySelectorAll('.wizard-body');  // ← 抓到两个面板的所有 pane</code></pre>
+
+<p>于是在场景向导点一下页签，数据管理的 pane 会被一并设成 <code>display:none</code>。真实测量数据：</p>
+
+<div class="before-after">
+  <div class="ba bad"><span class="lbl">修复前 · 点向导 tab 后</span>wizard board: block → none ✓（正确）<br>wizard ppt: none → block ✓（正确）<br><strong>data timeline: block → none ✗（被误伤）</strong><br>而 tab 按钮仍高亮，状态自相矛盾</div>
+  <div class="ba good"><span class="lbl">修复后 · 点向导 tab 后</span>wizard board: block → none ✓<br>wizard ppt: none → block ✓<br><strong>data timeline: block → block ✓（不受影响）</strong></div>
+</div>
+
+<p><strong>修法</strong>：把选择器限定到 <code>#wizard-panel</code> 作用域，并新增 <code>wireDataPanelTabs()</code> 让数据管理面板独立管理自己的页签。</p>
+
+<h3>P1：用户什么都没听到，界面却说「播放完毕」</h3>
+
+<p>这是<strong>语义正确性</strong>问题，比死按钮更值得警惕。在线合成路径长这样：</p>
+
+<pre><code>const r = await playBlob(blobCache[i]);
+if (r === 'stopped') break;
+if (r === 'error') { throw ... }          // 正确处理
+if (r !== 'blocked') audioBlobs.push(...);
+if (r === 'blocked') break;               // blocked 跳出循环
+...
+if (!isStopped &amp;&amp; myId === speakRequestId) return 'ok';   // ← 却返回 'ok'！</code></pre>
+
+<p><code>'blocked'</code> 是浏览器拦截自动播放时的返回值。此时<strong>用户一个字都没听到</strong>，但循环 break 之后代码径直返回 <code>'ok'</code>，<code>speak()</code> 随即显示「播放完毕。」并写入历史记录。</p>
+
+<p>讽刺的是，状态机里<em>早就定义了</em> <code>blocked: 'stopped'</code> 这条转移——但它<strong>从未被调用过</strong>。全文件只有四处 <code>playState.apply()</code>：<code>speak</code> / <code>done</code> / <code>error</code> / <code>stopped</code>，唯独漏了 <code>blocked</code>。</p>
+
+<div class="callout warn">
+<strong>这与项目历史上修过的 P-13 是同一类缺陷。</strong>P-13 的记录写着「播放失败被静默当成功」，当时修了 <code>error</code> 路径，但 <code>blocked</code> 是漏网的同伙。这说明<strong>修一个案例时没有系统性地检查同类路径</strong>。
+</div>
+
+<p><strong>修法</strong>：抽出纯函数做单点映射，把「播放结果 → 链路返回值」的决策集中到一处，并让它可被单元测试直接覆盖：</p>
+
+<pre><code>function playResultToChainResult(r) {
+    if (r === 'ended')   return { chain: 'ok',      playAction: 'done' };
+    if (r === 'stopped') return { chain: 'stopped', playAction: 'stopped' };
+    if (r === 'blocked') return { chain: 'blocked', playAction: 'blocked' };
+    return { chain: 'error', playAction: 'error' };  // 'error' 及一切未预期值
+}</code></pre>
+
+<p>注意最后一行的防御性设计：<strong>任何未预期的返回值都降级为 <code>error</code></strong>，绝不静默成功。这是「失败必须显式」原则的落地。</p>
+
+<h2>四、我自己引入又抓到的 bug</h2>
+
+<p>诚实披露两件事：修复 P1 时我引入了新缺陷，其中一个被<strong>独立审查线程</strong>抓到，另一个被自查发现。</p>
+
+<h3>4.1 自查找出：<code>playBlocked</code> 未声明</h3>
+
+<p>我写了 <code>playBlocked = true;</code> 却没有声明这个变量。在非严格模式下它变成一个<strong>全局变量且永不重置</strong>——一旦某一轮朗读被浏览器拦截，之后<strong>每一轮都会误报 blocked</strong>。</p>
+
+<pre><code>// 修复前：变量不存在，首次赋值创建全局变量
+if (m.chain === 'blocked') { playBlocked = true; break; }
+
+// 修复后：在 synthChain 开头声明，每轮重置
+async function synthChain(text, voice, speed, myId) {
+    currentEngine = 0;
+    let playBlocked = false;   // ← 必须每轮重置
+    ...</code></pre>
+
+<h3>4.2 独立审查线程抓出：helper 函数没写进产品代码</h3>
+
+<p>这一条比上面严重得多，而且极具讽刺意味。</p>
+
+<div class="callout warn">
+<strong>我把 <code>playResultToChainResult</code> 写进了单元测试文件，却没写进 <code>demo.html</code>。</strong>
+于是：单元测试全绿（它测的是<em>自己文件里的副本</em>），而产品代码在 <code>demo.html:1680</code> 只有调用、没有定义 → 在线播放走到该行抛 <code>ReferenceError</code>，被外层 <code>catch</code> 吞掉，表现为"端点异常→静默降级"。
+</div>
+
+<p>换个说法：<strong>本轮要修的是「blocked 被静默当成功」，而这个修复的核心函数压根没进产品代码。</strong>我在报告里刚刚批评过"测试假绿掩盖未落地实现"，转头自己就犯了一遍。</p>
+
+<p>独立审查线程给出的证据链：</p>
+
+<pre><code>$ grep -c 'function playResultToChainResult' demo.html dist/index.html
+demo.html: 0      dist/index.html: 0
+$ 页面内 typeof playResultToChainResult  →  undefined</code></pre>
+
+<p><strong>修法有两层</strong>：补上函数定义，<em>并且</em>新增一个能捕获这类错误的测试。</p>
+
+<pre><code>// T_P0_5：直连产品导出的实例，而非测试文件里的副本
+const f = window.__chattts && window.__chattts.playResultToChainResult;
+assert(typeof f === 'function', '生产代码漏定义，在线播放将抛 ReferenceError');</code></pre>
+
+<p>为确认这个测试<strong>真的有效</strong>（而不是又写一个摆设），我做了反向验证：临时删掉函数定义，重跑 ——</p>
+
+<div class="before-after">
+  <div class="ba bad"><span class="lbl">删除定义后（期望失败）</span>❌ T_P0_5 失败<br>总计: 0 通过, 6 失败 / 6 项<br>（module 初始化崩溃，全部用例挂掉）</div>
+  <div class="ba good"><span class="lbl">恢复定义后</span>✅ T_P0_5 通过<br>总计: 6 通过, 0 失败 / 6 项</div>
+</div>
+
+<h3>4.3 审查线程还发现：状态机转移是空操作</h3>
+
+<p>我加的 <code>playState.apply(m.playAction)</code> 在在线路径上<strong>什么都没做</strong>。因为 <code>playState</code> 全程停在 <code>preparing</code>（全代码没有任何一处 <code>apply('playing')</code>），而 <code>done</code> / <code>stopped</code> / <code>blocked</code> 对 <code>preparing</code> 都是<strong>非法转移</strong>：</p>
+
+<pre><code>idle        speak   -> preparing
+preparing   done    -> FALSE（正常结束：无操作）
+preparing   stopped -> FALSE（用户停止：无操作）
+preparing   blocked -> FALSE（被拦：本轮想设的状态没设上）
+preparing   error   -> errored  ← 只有 error 生效</code></pre>
+
+<p>修法：在 <code>await playBlob</code> <strong>之前</strong>补 <code>playState.apply('playing')</code>，让终结态转移合法。另外，我在 <code>speak()</code> 里写的注释"状态已是 stopped（playBlob 内已 apply）"与事实不符——<code>playBlob</code> 从不碰 <code>playState</code>。注释已更正。</p>
+
+<h2>五、一次"修复暴露旧缺陷"的连锁反应</h2>
+
+<p>这一节展示为什么<strong>A/B 归因</strong>比"重跑一下"重要。</p>
+
+<p>修好 <code>pushTimeline</code> 的实时渲染后，<code>e2e-test-a11y.cjs</code> 从 4/4 变成 2/4。表面看像是我引入了回归。</p>
+
+<p>做法是临时把新加的 <code>visible</code> 置为 <code>false</code>（等于回到旧行为），重跑 a11y ——</p>
+
+<pre><code>visible = false  →  a11y: 4 通过, 0 失败 / 4 项   ← 恢复
+visible = 真值   →  a11y: 2 通过, 2 失败 / 4 项   ← 失败</code></pre>
+
+<p><strong>结论：不是回归，是暴露。</strong>时间线项此前因为"列表不刷新"这个 bug 而从不进入扫描视野，掩盖了真实的对比度缺陷。修好刷新，缺陷就露出来了。</p>
+
+<table>
+<tr><th>元素</th><th>前景 / 背景</th><th>实测对比度</th><th>门槛</th><th>判定</th></tr>
+<tr><td><code>.tl-ts</code></td><td><code>#94a3b8</code> on <code>#f7f8fa</code></td><td><strong>2.41:1</strong></td><td>4.5:1</td><td>❌</td></tr>
+<tr><td><code>.tl-kind</code></td><td><code>#6366f1</code> on <code>#e2e4f9</code></td><td><strong>3.55:1</strong></td><td>4.5:1</td><td>❌</td></tr>
+</table>
+
+<p>修复方式沿用项目既有的 <code>--success-ink</code> / <code>--danger-ink</code> 模式，新增两个可访问性 token，取值全部<strong>经计算验证</strong>而非凭感觉挑：</p>
+
+<pre><code>--subtle-ink: 亮 #5b6472 (5.63:1)  暗 #9aa4b5 (5.85:1)
+--accent-ink: 亮 #4f46e5 (5.00:1)  暗 #a5b4fc (6.46:1)</code></pre>
+
+<h2>六、还修掉了一处随机失败的测试</h2>
+
+<p><code>e2e-test-zh.cjs</code> 三次里挂一次。失败信息是：</p>
+
+<pre><code>❌ T_ZH_3 — status=🎤 在线合成播放中…（第 1/1 段）</code></pre>
+
+<p><code>T_ZH_3</code> 断言"关闭引擎1.5 后应落到引擎2/3 兜底"——这个断言<strong>隐含假设了端点宕机</strong>。但端点可用时，降级链正常走引擎1 在线合成，<strong>那恰恰是期望行为</strong>，却被判为失败。</p>
+
+<p>这是<strong>测试缺陷</strong>（依赖真实网络状态），项目自己的铁则第 5 条就写着要用路由拦截制造确定性场景。修法：在 context 级别统一把 TTS 端点拦截为 502，让整个文件跑在确定场景下。<strong>连跑 5 次全绿</strong>。</p>
+
+<p>顺手修了一个计数标签 bug：原代码把 <code>results.length</code> 打印了两次，会输出「4 通过, 1 失败 / 4 项」这种自相矛盾的结果。</p>
+
+<hr style="margin:56px 0 40px;border:none;border-top:1px solid var(--border)">
+
+<h2>七、还有两个影响交付的发现</h2>
+
+<div class="card p1">
+  <h4><span class="sev p1">P0</span>构建产物与源文件不同步，CI 必然失败</h4>
+  <p><code>dist/index.html</code> 是 <code>demo.html</code> 的部署副本。它当时停留在 <code>4.7.0</code>，<strong>缺少 v4.7.1 的全部修复</strong>。而 CI 里有一条硬检查：</p>
+  <pre><code>diff -q demo.html dist/index.html &amp;&amp; echo "✅ dist 已同步"</code></pre>
+  <p>也就是说，<strong>当时的代码一旦推送，CI 会立刻变红</strong>。已通过 <code>cp demo.html dist/index.html</code> 同步，<code>diff -q</code> 通过。</p>
+</div>
+
+<div class="card p1">
+  <h4><span class="sev p1">P1</span>有 8 项测试从未在 CI 里跑过</h4>
+  <p>CI 的 E2E 分两个 shard 并行，但分片列表里<strong>根本没有 <code>e2e-test-v47.cjs</code></strong>。这 8 项测试（i18n / 语速 / 可视化 / 听写 / 试听 / 版本徽章）长期只在开发者本机运行，CI 绿灯给的是一种<em>虚假的安心</em>。</p>
+  <p>已纳入 shard 2，并加入 <code>node --check</code> 语法检查列表。</p>
+</div>
+
+<h2>八、验证：每一项都附真实输出</h2>
+
+<table>
+<tr><th>验证项</th><th>命令</th><th>结果</th></tr>
+<tr><td>P0 死按钮（新增）</td><td><code>node e2e-test-p0-deadbtn.cjs</code></td><td>修复前 <strong>1/5</strong> → 修复后 <strong>5/5 PASS</strong></td></tr>
+<tr><td>E2E 主套件</td><td><code>node e2e-test.cjs</code></td><td>18/18 PASS</td></tr>
+<tr><td>单元 · 状态机</td><td><code>node --test unit-test-v47.cjs</code></td><td>10/10 PASS（7→10）</td></tr>
+<tr><td>全量 E2E</td><td>10 个套件</td><td>65/65 PASS</td></tr>
+<tr><td>全量单元</td><td>9 个套件</td><td>60/60 PASS</td></tr>
+<tr><td>台账门禁</td><td><code>node verify-acceptance.cjs --strict</code></td><td>TOTAL 125 · <strong>STRICT: 文档声称与实测一致 (125)</strong></td></tr>
+<tr><td>dist 同步</td><td><code>diff -q demo.html dist/index.html</code></td><td>✅ 逐字节一致</td></tr>
+<tr><td>无回归</td><td>wizard / a11y / v47 复跑</td><td>6/6 · 4/4 · 8/8 PASS</td></tr>
+</table>
+
+<h2>九、一个更重要的发现：规划的 15 项功能，14 项从未实现</h2>
+
+<p>审计代理逐一核验了 <code>v5待办清单.md</code> 里的 15 个节点，结论是<strong>真实落地率 1/15（6.7%）</strong>——只有 V5-11 播放状态机是真的。</p>
+
+<p>但比这个数字更值得注意的，是审计过程中发现的<strong>陷阱</strong>：</p>
+
+<div class="callout warn">
+<strong>不要用 grep 命中数判断功能是否落地。</strong>项目里搜 <code>indexedDB</code>、<code>BM25</code>、<code>Worker</code>、<code>queue</code>、<code>kind</code>、<code>resume</code> 这几个词<em>都有命中</em>，但它们分别来自：第三方库 <code>kokoro-js</code>、Rust 编译产物的符号表、并发池的内部变量、Service Worker。<strong>零个是自研实现。</strong>
+</div>
+
+<p>更值得注意的是 <strong>23 个 V5 验收测试 ID 只存在于待办清单文档自身</strong>，在任何测试文件里都不存在。这意味着那批节点处于一种「看起来已有验收标准、只差实现」的假象中——而实际上连测试骨架都还没有。</p>
+
+<p>另有迹象表明<strong>规划漂移</strong>：<code>pptxgenjs</code>、<code>OfflineAudioContext</code>、<code>__chattts.speak</code> 这批标识符在<strong>三代规划文档</strong>中反复登记，却始终未被实施。</p>
+
+<h2>十、仍未闭环的部分（诚实披露）</h2>
+
+<ul>
+  <li><strong>15 项 v5 功能中的 14 项</strong>未实现。依赖顺序上 <code>V5-1（IndexedDB + BM25 数据层）</code>是其余节点的地基。</li>
+  <li><strong>E10 CSP 收敛</strong>：两个方案（拆出 <code>app.js</code> / 用 sha256 哈希）需要你拍板。方案 A 能顺带缓解「单文件 3000+ 行」的可维护性问题，但部署会从 1 个文件变成 2 个，与「单文件部署」的承诺有张力。</li>
+  <li><strong>一处注释与规划冲突</strong>：<code>demo.html:1154</code> 写着「Chrome onboundary 不可靠故用块级定时推进」，这<strong>直接否决了 V5-13 所依赖的技术路径</strong>。下一轮若要做字幕同步，得先推翻这个判断的依据。</li>
+  <li><strong>外部受限项</strong>：引擎 1.5 真机出声（headless 跑不了 82MB WASM 推理）、iOS Safari 实测——需要真机，标 <code>待验证</code>。</li>
+</ul>
+
+<hr style="margin:56px 0 40px;border:none;border-top:1px solid var(--border)">
+
+<h2>十一、测验：确认你理解了这次变更</h2>
+<p style="color:var(--muted);font-size:.94rem">8 道题，全部答对才算通过。选择后立即显示解析。</p>
+
+<div id="quiz">
+  <div class="progress"><i id="prog"></i></div>
+  <div id="qs"></div>
+  <div class="actions">
+    <button class="btn-primary" id="submit" disabled>提交答案</button>
+    <button class="btn-ghost" id="reset">重做</button>
+    <span id="counter" style="color:var(--muted);font-size:.88rem"></span>
+  </div>
+  <div id="score"></div>
+</div>
+
+<footer>
+  <p>变更报告 · v4.7.1 · 2026-10-14 · 所有数字均来自本机真实复跑，未使用估算或推测值。</p>
+</footer>
+
+</div>
+
+<script>
+const QUESTIONS = [
+  {
+    stem: "「🧾 透明时间线」按钮点击无反应的<strong>根本原因</strong>是什么？",
+    opts: [
+      "按钮没有绑定任何 click 事件处理器",
+      "v4.6 重构把面板收进 #data-panel 后，wiring 函数仍在查找已不存在的 #timeline-panel，导致提前 return",
+      "CSS 的 pointer-events 被设成了 none",
+      "JavaScript 文件加载失败"
+    ],
+    a: 1,
+    why: "函数本身写得完全正确——取按钮、绑事件、切 aria-expanded 一应俱全。问题出在它第一行就 return 了：<code>getElementById('timeline-panel')</code> 返回 null，守卫条件 <code>if (!btn || !panel) return;</code> 直接终止。这是重构漏网：HTML 改了，引用它的 JS 没跟着改。"
+  },
+  {
+    stem: "为什么这个缺陷能让 116 项测试全部通过？",
+    opts: [
+      "测试被跳过了没真正执行",
+      "测试环境的浏览器版本太旧",
+      "测试验证的是纯函数逻辑与元素存在性，而缺陷位于「元素之间的连接」层，粒度不匹配",
+      "测试断言写得太宽松"
+    ],
+    a: 2,
+    why: "既有测试覆盖了 <code>nextPlayState</code> 这类的纯函数、以及「输入框存在吗」这类元素断言。但没有任何一项测试去<em>点击</em>这个按钮并检查反应。缺陷藏在接线层，而测试的观测点不在这里——这就是「测试全绿但产品是坏的」的经典成因。"
+  },
+  {
+    stem: "P0-4「切换向导页签会清空数据管理面板」的机制是什么？",
+    opts: [
+      "两个面板共享了同一份 localStorage 数据",
+      "两个面板复用了 .wizard-tab / .wizard-body 类名，而向导用 document.querySelectorAll 全局选择器，一次操作同时改到了两个面板的 pane",
+      "CSS 优先级冲突导致样式被覆盖",
+      "事件冒泡把点击传给了父容器"
+    ],
+    a: 1,
+    why: "向导的 wiring 用 <code>document.querySelectorAll('.wizard-tab')</code>，抓到的是<strong>全页面</strong>所有该类元素——包括数据管理面板的。修法是把选择器限定到 <code>#wizard-panel</code> 作用域，并让 <code>#data-panel</code> 用自己的 <code>wireDataPanelTabs()</code> 独立管理。"
+  },
+  {
+    stem: "在线合成路径中 <code>playBlob</code> 返回 <code>'blocked'</code> 时，修复前的行为是？",
+    opts: [
+      "抛出异常并触发降级链",
+      "循环 break 后仍返回 'ok'，界面显示「播放完毕」并写入历史记录，但用户什么都没听到",
+      "显示「浏览器拦截了自动播放」的提示",
+      "自动重试播放"
+    ],
+    a: 1,
+    why: "代码只判断了 <code>'stopped'</code> 和 <code>'error'</code>，<code>'blocked'</code> 落在 break 之后径直走到 <code>return 'ok'</code>。而状态机里其实<em>早就定义了</em> <code>blocked: 'stopped'</code> 这条转移——只是从未被调用过。这与历史上修过的 P-13（播放失败被静默当成功）是同一类缺陷。"
+  },
+  {
+    stem: "新增的 <code>playResultToChainResult</code> 对<strong>未预期</strong>的返回值（如 undefined、null、乱码字符串）如何处理？为什么这样设计？",
+    opts: [
+      "返回 'ok'，尽量不打扰用户",
+      "返回 'stopped'，当作正常停止",
+      "一律降级为 'error'，坚持「失败必须显式」，绝不静默成功",
+      "抛出异常让上层捕获"
+    ],
+    a: 2,
+    why: "函数最后一行是 <code>return { chain: 'error', playAction: 'error' };</code>，兜住 'error' 及一切未预期值。这是防御性设计：与其猜测一个陌生返回值的含义并乐观地当成功，不如显式暴露问题。单元测试 U_PLAY_7 用 7 种畸形输入守护了这条规则。"
+  },
+  {
+    stem: "本轮修复中我自己引入、随后自查发现的 bug 是什么？",
+    opts: [
+      "把 aria-expanded 的布尔值写成了字符串",
+      "使用了未声明的 playBlocked 变量，在非严格模式下成为永不重置的全局变量，会导致一轮被拦后每轮都误报 blocked",
+      "dist 同步时漏掉了一个文件",
+      "CSS 变量名拼写错误"
+    ],
+    a: 1,
+    why: "<code>playBlocked</code> 被赋值和读取，却从未用 <code>let</code> 声明。非严格模式下这创建了一个全局变量，且跨轮次不会被重置——第一轮遇到 blocked 后，后续每一轮都会误报。修法是在 <code>synthChain</code> 开头 <code>let playBlocked = false;</code>。教训：状态机的「谁在何时重置」比「有哪些状态」更易出错。"
+  },
+  {
+    stem: "审计发现 v5 批次 15 个节点的真实落地率约为多少？审计过程中最重要的<strong>方法论警示</strong>是什么？",
+    opts: [
+      "约 90%；警示是不要重复造轮子",
+      "1/15（6.7%）；警示是 grep 命中数不等于功能落地——indexedDB/BM25/Worker 等词的命中全部来自第三方库、编译产物和内部变量",
+      "约 50%；警示是测试覆盖率不足",
+      "1/15（6.7%）；警示是文档写得太少"
+    ],
+    a: 1,
+    why: "只有 V5-11（播放状态机）真实落地。而项目中 <code>indexedDB</code>、<code>BM25</code>、<code>Worker</code>、<code>queue</code>、<code>kind</code>、<code>resume</code> 这些词<em>都有命中</em>，却分别来自第三方库 kokoro-js、Rust 编译产物符号表、pLimit 并发池内部变量、Service Worker——零个是自研实现。教训：验收证据必须指向<strong>调用链</strong>，而非标识符计数。"
+  },
+  {
+    stem: "关于 <code>dist/index.html</code> 不同步的问题，为什么它被定级为 P0 而不是 P2 的「文档不同步」？",
+    opts: [
+      "因为它体积很大",
+      "因为 CI 里有 diff -q 硬检查，产物与源文件不一致会让<strong>推送后 CI 必然失败</strong>，阻断整个交付流程",
+      "因为 dist 是用户直接访问的入口",
+      "因为它包含了旧版本的测试代码"
+    ],
+    a: 1,
+    why: "CI 的 Build &amp; Dist Sync 作业执行 <code>diff -q demo.html dist/index.html &amp;&amp; echo \"✅ dist 已同步\"</code>。产物停留在 4.7.0、缺少 v4.7.1 全部修复，意味着当时的工作区一旦推送，流水线立刻变红——这是<strong>实际阻塞交付</strong>的问题，不是文档瑕疵，所以定 P0。"
+  },
+  {
+    stem: "独立审查线程抓到的最严重问题是什么？为什么它值得单独记住？",
+    opts: [
+      "CSS 变量命名不一致",
+      "playResultToChainResult 只写进了单元测试文件、没写进 demo.html，导致单元测试全绿但产品代码运行时会抛 ReferenceError",
+      "测试文件里有一处拼写错误",
+      "注释的日期写错了"
+    ],
+    a: 1,
+    why: "这是「测试假绿掩盖未落地实现」的教科书案例：单元测试测的是<strong>它自己文件里的副本</strong>，所以全绿；而 <code>demo.html</code> 里只有调用没有定义，运行时抛 <code>ReferenceError</code> 被 <code>catch</code> 吞成「端点降级」。讽刺的是本轮要修的正是「静默失败」，而修复的核心函数压根没进产品代码。修法不只是补定义，还要新增 <code>T_P0_5</code>——直连 <code>window.__chattts</code> 断言生产代码真的导出了该函数，并做反向验证（删掉定义 → 测试必须失败）确认它不是摆设。"
+  },
+  {
+    stem: "修好 <code>pushTimeline</code> 的实时渲染后 <code>e2e-test-a11y.cjs</code> 从 4/4 变成 2/4。正确的处理方式与结论是什么？",
+    opts: [
+      "直接回滚实时渲染的修复，因为 a11y 更重要",
+      "重跑几次直到通过，当作 flaky",
+      "用 A/B 归因（临时把 visible 置 false 重跑）确认这是「暴露被掩盖的旧缺陷」而非回归，然后真正修好对比度",
+      "删掉 a11y 测试中失败的断言"
+    ],
+    a: 2,
+    why: "时间线项此前因「列表不刷新」这个 bug 而从不进入扫描视野，掩盖了真实的对比度缺陷（<code>.tl-ts</code> 2.41:1、<code>.tl-kind</code> 3.55:1，均低于 4.5 门槛）。A/B 实测：<code>visible=false</code> → 4/4 恢复；<code>visible</code> 为真 → 2/4 失败，证明是暴露而非回归。正确处理是按既有 <code>--success-ink</code>/<code>--danger-ink</code> 模式新增 <code>--subtle-ink</code>/<code>--accent-ink</code>，取值经计算验证。回滚或删断言都是在掩盖真问题。"
+  }
+];
+
+let state = QUESTIONS.map(() => null);   // 每题选中的索引
+let submitted = false;
+
+const qsEl = document.getElementById('qs');
+const progEl = document.getElementById('prog');
+const counterEl = document.getElementById('counter');
+const submitBtn = document.getElementById('submit');
+const resetBtn = document.getElementById('reset');
+const scoreEl = document.getElementById('score');
+
+function render() {
+  qsEl.innerHTML = '';
+  QUESTIONS.forEach((q, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'q';
+    const stem = document.createElement('div');
+    stem.className = 'stem';
+    stem.innerHTML = '<span class="num">' + (i + 1) + '</span><span>' + q.stem + '</span>';
+    wrap.appendChild(stem);
+
+    q.opts.forEach((opt, j) => {
+      const label = document.createElement('label');
+      label.className = 'opt';
+      label.dataset.q = i; label.dataset.o = j;
+      const input = document.createElement('input');
+      input.type = 'radio'; input.name = 'q' + i; input.value = j;
+      if (state[i] === j) input.checked = true;
+      if (submitted) {
+        input.disabled = true;
+        label.classList.add('locked');
+        if (j === q.a) label.classList.add('correct');
+        else if (state[i] === j) label.classList.add('wrong');
+      }
+      input.addEventListener('change', () => {
+        if (submitted) return;
+        state[i] = j;
+        updateProgress();
+      });
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(opt));
+      wrap.appendChild(label);
+    });
+
+    const ex = document.createElement('div');
+    ex.className = 'explain' + (submitted ? ' show' : '');
+    ex.innerHTML = '<strong>解析：</strong>' + q.why;
+    wrap.appendChild(ex);
+    qsEl.appendChild(wrap);
+  });
+}
+
+function updateProgress() {
+  const done = state.filter(x => x !== null).length;
+  progEl.style.width = (done / QUESTIONS.length * 100) + '%';
+  counterEl.textContent = '已作答 ' + done + ' / ' + QUESTIONS.length;
+  submitBtn.disabled = done < QUESTIONS.length || submitted;
+}
+
+submitBtn.addEventListener('click', () => {
+  submitted = true;
+  render();
+  const correct = QUESTIONS.reduce((n, q, i) => n + (state[i] === q.a ? 1 : 0), 0);
+  const total = QUESTIONS.length;
+  const allRight = correct === total;
+  scoreEl.className = 'show ' + (allRight ? 'pass' : 'fail');
+  scoreEl.innerHTML = allRight
+    ? '✅ 通过 — ' + correct + '/' + total + ' 全部正确。你已经理解了这次变更的机制、根因与局限。'
+    : '❌ 未通过 — ' + correct + '/' + total + ' 正确。红色选项是你选错的，绿色是正确答案。请阅读上方解析后点「重做」再试。';
+  scoreEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+resetBtn.addEventListener('click', () => {
+  state = QUESTIONS.map(() => null);
+  submitted = false;
+  scoreEl.className = '';
+  scoreEl.innerHTML = '';
+  render();
+  updateProgress();
+});
+
+render();
+updateProgress();
+</script>
+</body>
+</html>

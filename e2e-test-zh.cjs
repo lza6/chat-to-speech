@@ -14,35 +14,52 @@ async function test(name, fn) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext();
+  // 确定性场景（2026-10-14）：整套用例统一把 TTS 端点拦截为 502，消除对真实端点状态的依赖。
+  // 根因：T_ZH_3 断言"关闭引擎1.5 后应落引擎2/3 兜底"，隐含假设端点宕机；端点可用时
+  // 走引擎1 在线路径（这本身是正确的），却被判失败 → 随机 flaky。
+  await ctx.route('**://speech.ai.unturf.com/**', r => r.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"bad gateway"}' }));
   const page = await ctx.newPage();
   const logs = [];
   page.on('console', m => logs.push(m.type() + ': ' + m.text()));
+  // 共享页显式就绪：T_ZH_1 已改为独立 page，不再顺带导航共享页 → T_ZH_2/3/4 会面对空白页
+  await page.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!(window.__chattts && window.__chattts.version), null, { timeout: 10000 });
 
   // T_WASM_1(升级版)：端点宕机 → 中文文本 → 状态栏到引擎1.5 提示（不做真机合成断言，避免 headless 无 GPU/WASM 内存限制）
+  // 确定性收口（2026-10-14）：原实现依赖外部端点"真实宕机"，而 speech.ai.unturf.com 时通时断
+  // → 端点恢复时降级链不触发，断言随机失败（实测本机 1 次挂红、复跑又绿）。
+  // 按铁则第 5 条改为 Playwright 路由拦截，制造确定性 502 场景，不再依赖真实网络。
   await test('T_ZH_1 端点宕机时中文文本触发引擎1.5 降级路径', async () => {
-    await page.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1500);
-    // 端点宕机：voices 502 → ep-down
-    const cls = await page.getAttribute('#endpoint-badge', 'class').catch(() => '');
-    if (!/ep-down/.test(cls)) console.log('   徽章非 ep-down（可能端点恢复），引擎路径仍验证');
-    await page.fill('#tts-input', '你好，这是一段本地中文引擎测试。');
-    await page.click('#speak-btn');
-    // E1 修复：不再用「reached15 || 引擎2 兜底」的自嗨断言。
-    // 断言三选一且每项可诊断：
-    //  a) 引擎1.5 依赖在 headless CSP 下已放行，若依赖拉取成功进入模型下载阶段 → 状态「本地中文引擎合成中/朗读中/试本地」，
-    //     或首次依赖拉取中/失败 → 「本地中文引擎不可用/异常/仍在上次加载中」；
-    //  b) 依赖不可达（无网络/引擎1.5 探测失败）→ 状态「已切换其他引擎」「本地中文引擎不可用」；
-    //  c) 引擎2 兜底完成（兜底路径真实可出声）。
-    // 三者任一都说明降级链端到端真实执行；但必须「透出引擎1.5 尝试痕迹」，不能静默只有引擎2。
-    await page.waitForTimeout(12000);
-    const status = await page.textContent('#tts-status');
-    const errLog = await page.evaluate(() => localStorage.getItem('tts_err_log_v2') || '');
+    const p = await ctx.newPage();   // 端点 502 由 context 级路由统一拦截
+    await p.goto(BASE + '/demo.html', { waitUntil: 'domcontentloaded' });
+    await p.waitForFunction(() => !!(window.__chattts && window.__chattts.version), null, { timeout: 10000 });
+    p.on('console', m => logs.push(m.type() + ': ' + m.text()));
+    // 端点被拦截为 502 → 徽章必须确定性地变为 ep-down
+    let cls = '';
+    for (let i = 0; i < 60; i++) {
+      cls = await p.getAttribute('#endpoint-badge', 'class').catch(() => '');
+      if (/ep-down/.test(cls || '')) break;
+      await p.waitForTimeout(250);
+    }
+    console.log('   徽章 class（503 拦截下）: ' + cls);
+    assert(/ep-down/.test(cls || ''), '端点被拦截为 502 但徽章未标 ep-down（class=' + cls + '），确定性场景未生效');
+    await p.fill('#tts-input', '你好，这是一段本地中文引擎测试。');
+    await p.click('#speak-btn');
+    // 断言降级链真实走到引擎1.5 或引擎2 兜底（轮询，不固定 sleep）
+    let status = '';
+    for (let i = 0; i < 120; i++) {
+      status = await p.textContent('#tts-status');
+      if (/本地中文|试本地|不可用|仍在上次加载|已切换其他引擎|离线|浏览器内置|播放完毕|文本|复制|语音服务/.test(status || '')) break;
+      await p.waitForTimeout(250);
+    }
+    const errLog = await p.evaluate(() => localStorage.getItem('tts_err_log_v2') || '');
     const tried15 = /本地中文|试本地|不可用|仍在上次加载|已切换其他引擎/.test(status);
-    const fellBack = /离线|切换|不可用|浏览器内置|播放完毕|文本|复制/.test(status);
+    const fellBack = /离线|切换|不可用|浏览器内置|播放完毕|文本|复制|语音服务/.test(status);
     const engine15Attempted = tried15 || /engine15-probe|synthChain-engine15/.test(errLog);
-    console.log('   状态: ' + status.slice(0, 120));
+    console.log('   状态: ' + String(status).slice(0, 120));
     console.log('   引擎1.5 尝试痕迹: ' + (engine15Attempted ? '有' : '无'));
     assert(engine15Attempted || fellBack, '降级链既未达引擎1.5 也未兜底，status=' + status);
+    await p.close();
   });
 
   // T_ZH_2：设置面板出现引擎1.5 开关且默认开
@@ -99,7 +116,9 @@ async function test(name, fn) {
 
   await browser.close();
   const fails = results.filter(r => r.status === 'FAIL');
-  console.log('\n总计: ' + results.length + ' 通过, ' + fails.length + ' 失败 / ' + results.length + ' 项');
+  const passN = results.length - fails.length;
+  // 计数标签修复（2026-10-14）：原打印 results.length 两次，会输出「4 通过, 1 失败 / 4 项」这类自相矛盾结果
+  console.log('\n总计: ' + passN + ' 通过, ' + fails.length + ' 失败 / ' + results.length + ' 项');
   if (fails.length) {
     console.log('FAIL traces:');
     fails.forEach(f => console.log('  ' + f.name + ': ' + f.err));

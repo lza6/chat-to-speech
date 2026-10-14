@@ -1,7 +1,7 @@
 {
   "name": "online-chat-tts",
   "private": true,
-  "version": "4.7.0",
+  "version": "4.7.1",
   "description": "在线聊天转语音 — 纯前端 TTS 工具（AI 对话 + 文本转语音 + 整页朗读）",
   "scripts": {
     "test:e2e": "node e2e-test.cjs",
@@ -10,9 +10,11 @@
     "test:e2e:ssml": "node e2e-test-ssml.cjs",
     "test:e2e:a11y": "node e2e-test-a11y.cjs",
     "test:e2e:perf": "node e2e-test-perf.cjs",
+    "test:e2e:p0": "node e2e-test-p0-deadbtn.cjs",
+    "test:e2e:report": "node e2e-test-report.cjs",
     "test:unit": "node unit-test.cjs",
-    "test:unit:all": "node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs",
-    "test:all": "node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-a11y.cjs && node e2e-test-perf.cjs && node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs",
+    "test:unit:all": "node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs unit-test-v47.cjs",
+    "test:all": "node e2e-test.cjs && node e2e-test-sw.cjs && node e2e-test-cfg.cjs && node e2e-test-zh.cjs && node e2e-test-wizard.cjs && node e2e-test-ssml.cjs && node e2e-test-a11y.cjs && node e2e-test-perf.cjs && node e2e-test-avail.cjs && node e2e-test-v47.cjs && node e2e-test-p0-deadbtn.cjs && node e2e-test-report.cjs && node --test unit-test.cjs unit-test-pool.cjs unit-test-cfg.cjs unit-test-zh.cjs unit-test-health.cjs unit-test-memory.cjs unit-test-wizard.cjs unit-test-ssml.cjs unit-test-v47.cjs",
     "verify": "node verify-acceptance.cjs --strict",
     "serve": "node -e \"require('http').createServer((q,s)=>{const f=require('path').join('.',decodeURIComponent(q.url).split('?')[0]);require('fs').readFile(f,(e,d)=>{if(e){s.writeHead(404);s.end('404')}else{const m=require('path').extname(f);s.writeHead(200,{'Content-Type':{'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'}[m]||'application/octet-stream'});s.end(d)}})}).listen(8765,()=>console.log('http://localhost:8765/demo.html'))\""
   },

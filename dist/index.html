@@ -18,7 +18,9 @@
   --surface-1:#ffffff; --surface-2:#f7f8fa;
   --ink:#0f172a; --muted:#5b6472; --subtle:#94a3b8;
   --accent:#6366f1; --accent-2:#8b5cf6;
-  --success:#10b981; --warning:#f59e0b; --danger:#ef4444; --danger-ink:#b91c1c; --info:#3b82f6;
+  --success:#10b981; --success-ink:#047857; --warning:#f59e0b; --danger:#ef4444; --danger-ink:#b91c1c; --info:#3b82f6;
+  /* 可访问性 ink 变体（a11y 门禁：小字号文本需 ≥4.5:1，--subtle/--accent 作为文字色不达标）*/
+  --subtle-ink:#5b6472; --accent-ink:#4f46e5;
   --border:#e2e8f0; --border-strong:#cbd5e1;
   --shadow-sm:0 1px 2px rgba(15,23,42,.04),0 1px 3px rgba(15,23,42,.06);
   --shadow-md:0 4px 6px -1px rgba(15,23,42,.05),0 8px 16px -4px rgba(15,23,42,.08);
@@ -35,7 +37,7 @@
     --surface-1:#1b1f2b; --surface-2:#232836;
     --ink:#f1f5f9; --muted:#9aa4b5; --subtle:#6b7688;
     --border:#2b3140; --border-strong:#39404f;
-  --danger-ink:#fca5a5;
+  --danger-ink:#fca5a5; --success-ink:#6ee7b7; --subtle-ink:#9aa4b5; --accent-ink:#a5b4fc;
     --shadow-sm:0 1px 2px rgba(0,0,0,.30),0 1px 3px rgba(0,0,0,.35);
     --shadow-md:0 4px 6px -1px rgba(0,0,0,.35),0 8px 16px -4px rgba(0,0,0,.45);
     --shadow-lg:0 12px 24px -6px rgba(0,0,0,.5),0 24px 48px -12px rgba(0,0,0,.6);
@@ -47,7 +49,7 @@
   --surface-1:#1b1f2b; --surface-2:#232836;
   --ink:#f1f5f9; --muted:#9aa4b5; --subtle:#6b7688;
   --border:#2b3140; --border-strong:#39404f;
-  --danger-ink:#fca5a5;
+  --danger-ink:#fca5a5; --success-ink:#6ee7b7; --subtle-ink:#9aa4b5; --accent-ink:#a5b4fc;
   --shadow-sm:0 1px 2px rgba(0,0,0,.30),0 1px 3px rgba(0,0,0,.35);
   --shadow-md:0 4px 6px -1px rgba(0,0,0,.35),0 8px 16px -4px rgba(0,0,0,.45);
   --shadow-lg:0 12px 24px -6px rgba(0,0,0,.5),0 24px 48px -12px rgba(0,0,0,.6);
@@ -114,6 +116,11 @@ main { width: 100%; max-width: 980px; display: flex; flex-direction: column; ali
 .tts-demo h2, .panel-title { margin: 0 0 8px; font-size: 1.18rem; font-weight: 650; letter-spacing: -0.01em; }
 .tts-demo p.desc { margin: 0 0 16px; color: var(--muted); font-size: .92rem; line-height: 1.6; }
 .panel { padding: 20px 20px 24px; min-height: 420px; }
+/* FCP 优化（v4.7.1）：非首屏面板跳过样式计算/布局。
+   A/B 实测：瓶颈是 body DOM 规模（约 20KB 元素 + 复杂选择器）导致的渲染开销
+   （去 script 后 DCL 仅 104ms 但 FCP 仍 2824ms），非 JS 阻塞、非第三方脚本。
+   contain-intrinsic-size 需给出近似高度，否则滚动条长度会抖动。 */
+#wizard-panel, #data-panel, #history-panel { content-visibility: auto; contain-intrinsic-size: auto 420px; }
 .panel-title { text-align: center; }
 .read-row { display: flex; gap: 10px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
 .tts-row { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -173,7 +180,7 @@ mark.hl-current {
   border-radius: 50%; animation: spin .7s linear infinite;
 }
 .ep-badge { font-size: .72rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; border: 1px solid transparent; }
-.ep-up { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+.ep-up { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success-ink, #047857); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
 .ep-down { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger-ink, #b91c1c); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 .ep-unknown { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); border-color: var(--border-strong); }
 progress { border: none; border-radius: 999px; overflow: hidden; width: 100%; height: 6px; margin-top: 12px; background: var(--surface-2); }
@@ -222,14 +229,17 @@ progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), 
   display: flex; gap: 8px; align-items: baseline; transition: var(--tr);
 }
 .timeline-item:hover { border-color: var(--border-strong); }
-.timeline-item .tl-ts { color: var(--subtle); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+/* a11y 修复（2026-10-14）：下列文本用 --subtle-ink/--accent-ink 替代 --subtle/--accent，
+   后者作为小字号文字色不达 4.5:1（实测 .tl-ts 2.41 / .tl-kind 3.55）。
+   该缺陷此前被 pushTimeline 实时渲染恒假所掩盖（列表不刷新 → 扫描器看不到新项）。 */
+.timeline-item .tl-ts { color: var(--subtle-ink, var(--subtle)); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .timeline-item .tl-kind {
   flex: 0 0 auto; font-weight: 700; font-size: .7rem; padding: 1px 7px; border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-ink, var(--accent));
 }
 .timeline-item.tl-err .tl-kind { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger-ink, #b91c1c); }
 .timeline-item .tl-msg { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timeline-item .tl-dur { flex: 0 0 auto; color: var(--subtle); font-variant-numeric: tabular-nums; }
+.timeline-item .tl-dur { flex: 0 0 auto; color: var(--subtle-ink, var(--subtle)); font-variant-numeric: tabular-nums; }
 .memory-panel { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
 .memory-tabs { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .memory-tab { transition: var(--tr); }
@@ -358,13 +368,13 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 <body>
     <nav class="app-nav" aria-label="主导航">
         <div class="nav-inner">
-            <a class="brand" href="#top" aria-label="回到顶部"><span class="brand-dot" aria-hidden="true"></span><span data-i18n="nav_brand">在线聊天转语音</span></a>
+            <a class="brand" href="#speak" aria-label="回到顶部" id="brand-top"><span class="brand-dot" aria-hidden="true"></span><span data-i18n="nav_brand">在线聊天转语音</span></a>
             <div class="nav-links">
                 <a href="#speak" data-i18n="nav_speak">朗读</a>
                 <a href="#chat" data-i18n="nav_chat">AI 对话</a>
                 <a href="#wizard-panel" data-i18n="nav_wizard">场景向导</a>
-                <a href="#timeline-panel" data-i18n="nav_timeline">时间线</a>
-                <span class="nav-badge" id="nav-badge">v4.7.0</span>
+                <a href="#data-panel" data-i18n="nav_timeline">时间线</a>
+                <span class="nav-badge" id="nav-badge">v4.7.1</span>
             </div>
         </div>
     </nav>
@@ -849,8 +859,14 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 localStorage.setItem(TIMELINE_KEY, JSON.stringify(arr.slice(-TIMELINE_CAP)));
             } catch (_) {}
             // 面板已展开时实时追加（黑匣子日志全开：无需重开即可看到每一步）
-            const panel = document.getElementById('timeline-panel');
-            if (panel && panel.style.display === 'block') renderTimeline();
+            // P1 修复（2026-10-14 独立审查发现）：原判 #timeline-panel，该 id 在 v4.6 并入
+            // #data-panel 后已不存在 → 本行恒假，实时追加静默失效（实测 #timeline-list 子节点数不变）。
+            // 改判：#data-panel 存在且其 timeline pane 处于可见态（即用户正看着时间线）。
+            const dataPanel = document.getElementById('data-panel');
+            const tlPane = dataPanel ? dataPanel.querySelector('.wizard-body[data-wtab-pane="timeline"]') : null;
+            const tlTab = dataPanel ? dataPanel.querySelector('.wizard-tab[data-wtab="timeline"]') : null;
+            const visible = !!(tlPane && tlTab && tlTab.getAttribute('aria-pressed') === 'true');
+            if (visible) { try { renderTimeline(); } catch (_) {} }
         }
         function loadTimeline() {
             try { return JSON.parse(localStorage.getItem(TIMELINE_KEY) || '[]'); } catch (_) { return []; }
@@ -884,15 +900,46 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 list.appendChild(div);
             }
         }
+        // P0 修复（2026-10-14，浏览器实测确认）：v4.6 把时间线/记忆收进 #data-panel 的 tab 结构后，
+        // 本函数仍在找已不存在的 #timeline-panel，`if (!btn || !panel) return;` 使「🧾 透明时间线」
+        // 按钮点击零反应（aria-expanded 恒为 false）。改为：激活数据管理面板的对应 tab 并滚动到位。
+        function activateDataTab(name) {
+            const panel = document.getElementById('data-panel');
+            if (!panel) return false;
+            const tabs = panel.querySelectorAll('.wizard-tab');
+            const panes = panel.querySelectorAll('.wizard-body');
+            tabs.forEach(t => t.setAttribute('aria-pressed', String(t.dataset.wtab === name)));
+            panes.forEach(p => { p.style.display = (p.dataset.wtabPane === name) ? 'block' : 'none'; });
+            // 内容随 tab 刷新（原逻辑寄生在向导的全局 handler 上，已拆出）
+            try {
+                if (name === 'memory') memoryRender('persona');
+                else if (name === 'timeline') renderTimeline();
+            } catch (e) {
+                // 不静默吞：渲染失败要能定位（与 CLAUDE.md「永远不静默吞掉错误」一致）
+                try { pushTimeline('ui', '数据面板渲染失败：' + (e && e.message || e), false, 'ui'); } catch (_) {}
+            }
+            return true;
+        }
+        function wireDataPanelTabs() {
+            const panel = document.getElementById('data-panel');
+            if (!panel) return;
+            panel.querySelectorAll('.wizard-tab').forEach(t => {
+                t.addEventListener('click', () => activateDataTab(t.dataset.wtab));
+            });
+        }
         function wireTimelineUI() {
             const btn = document.getElementById('timeline-btn');
-            const panel = document.getElementById('timeline-panel');
-            if (!btn || !panel) return;
+            if (!btn) return;
             btn.addEventListener('click', () => {
-                const open = panel.style.display === 'none';
-                panel.style.display = open ? 'block' : 'none';
-                btn.setAttribute('aria-expanded', String(open));
-                if (open) renderTimeline();
+                // 语义：点击 = 打开数据管理面板的时间线页并滚动到位。
+                // aria-expanded 表示"目标面板是否处于展开可见状态"（非折叠开关），
+                // 故每次点击都确认面板可见后置 true——不做 toggle，避免 aria 状态与实际可见性打架。
+                const panel = document.getElementById('data-panel');
+                const wasHidden = panel ? getComputedStyle(panel).display === 'none' : false;
+                if (!activateDataTab('timeline')) return;   // 内部已调 renderTimeline，此处不重复
+                if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                btn.setAttribute('aria-expanded', 'true');
+                if (wasHidden) pushTimeline('ui', '时间线面板由工具栏按钮打开', true, 'ui');
             });
             const ex = document.getElementById('timeline-export');
             if (ex) ex.addEventListener('click', () => {
@@ -974,6 +1021,16 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 completed: { speak: 'preparing', reset: 'idle' }
             };
             return (T[state] && T[state][action]) || null;
+        }
+        // 播放结果 → 合成链返回值（单点映射，与 unit-test-v47.cjs 的副本逐字同步：改一处必须同步另一处）
+        // 根因（2026-10-14）：在线合成路径原只判 stopped/error，playBlob 返回 'blocked'
+        // （自动播放被浏览器拦截）时循环 break 后仍 return 'ok' → 用户没听到声音却被报"播放完毕"。
+        // 设计要点：'blocked' 与一切未预期值都不映射为成功——失败必须显式。
+        function playResultToChainResult(r) {
+            if (r === 'ended') return { chain: 'ok', playAction: 'done' };
+            if (r === 'stopped') return { chain: 'stopped', playAction: 'stopped' };
+            if (r === 'blocked') return { chain: 'blocked', playAction: 'blocked' };
+            return { chain: 'error', playAction: 'error' }; // 'error' 及一切未预期值
         }
         const playState = {
             state: 'idle', requestId: 0, engine: 0, error: null,
@@ -1131,11 +1188,12 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         // V5-9 预埋：公开只读工具 API（供 E2E 断言 + 后续页面嵌入复用）
         try {
             window.__chattts = Object.assign(window.__chattts || {}, {
-                version: '4.7.0',
+                version: '4.7.1',
                 splitIntoChunks: splitIntoChunks,
                 parseSSML: parseSSML,
                 playState: playState,
                 nextPlayState: nextPlayState,
+                playResultToChainResult: playResultToChainResult,
                 clampSpeed: clampSpeed,
                 applySpeedPreset: applySpeedPreset,
                 previewVoice: previewVoice,
@@ -1589,6 +1647,7 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         // P0-3: 各引擎启用状态由配置中心控制（高级用户可关掉浏览器机械音等）
         async function synthChain(text, voice, speed, myId) {
             currentEngine = 0;
+            let playBlocked = false; // P0 修复：必须每轮重置，否则一轮被拦后后续全误报 blocked
             const chunks = splitIntoChunks(text);
             hlStart(chunks); // P1-2 朗读高亮
             const cfg = loadCfg();
@@ -1638,16 +1697,27 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                             isSynthesizing = false;
                             setStatus(`🎤 在线合成播放中…（第 ${i + 1}/${chunks.length} 段）`);
                             progressEl.value = i;
+                            // P0 修复（2026-10-14 独立审查发现）：playState 此前全程停在 preparing，
+                            // 使下面的 done/stopped/blocked 全成非法转移（apply 返回 false 被静默吞）。
+                            // 真正开始播放前先进入 playing，终结态转移才合法。
+                            playState.apply('playing');
                             const r = await playBlob(blobCache[i]);
-                            if (r === 'stopped') break;
-                            if (r === 'error') {
+                            // P-13 同类残留修复（2026-10-14）：原实现只判 stopped/error，
+                            // 'blocked'（自动播放被拦）落在 break 后仍 return 'ok' → 用户没听到
+                            // 声音却被报"播放完毕"。改为单点映射，blocked 与未预期值都不再当成功。
+                            const m = playResultToChainResult(r);
+                            if (m.playAction !== 'done') playState.apply(m.playAction, { error: m.chain === 'error' ? '音频播放失败' : null });
+                            if (m.chain === 'stopped') break;
+                            if (m.chain === 'blocked') { playBlocked = true; break; }
+                            if (m.chain === 'error') {
                                 // P-13 修复：音频解码/播放失败是引擎1 失败，抛给降级链，绝不 report ok
                                 pushTimeline('play', '音频播放失败（第 ' + (i + 1) + ' 段），触发降级。', false, 'engine1');
                                 throw new Error('音频解码/播放失败（第 ' + (i + 1) + ' 段），中止本轮在线播放。');
                             }
-                            if (r !== 'blocked') audioBlobs.push(blobCache[i]);
-                            if (r === 'blocked') break;
+                            audioBlobs.push(blobCache[i]);
                         }
+                        // blocked 不是成功：不写历史、不报"播放完毕"，交由 speak() 提示重试
+                        if (playBlocked) return 'blocked';
                         if (!isStopped && myId === speakRequestId) return 'ok';
                         return 'stopped';
                     } catch (e) {
@@ -2004,6 +2074,11 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                     // P-13 修复：播放失败是终结态，绝不报告“播放完毕”
                     playState.apply('error', { error: '播放失败' });
                     setStatus('⚠️ 播放失败，已停止。请检查网络或换一个语音重试。');
+                } else if (r === 'blocked') {
+                    // P-13 同类残留修复：自动播放被浏览器拦截 → 用户没听到声音，
+                    // 绝不能报"播放完毕"。状态已是 stopped（playBlob 内已 apply），此处只给可操作指引。
+                    setStatus('⚠️ 浏览器拦截了自动播放，请点击页面任意处后重试。');
+                    showNotice('浏览器拦截了自动播放。请点击页面任意处（或点下方按钮）后重试朗读。');
                 } else if (r === 'fallback') {
                     // 引擎3 已在内部设置状态
                 }
@@ -2241,7 +2316,9 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 try { localStorage.setItem(VOICES_CACHE_KEY, JSON.stringify({ list, ts: Date.now() })); } catch(_){}
                 fillVoiceSelect(list);
                 updateEndpointBadge(true);
-                if (!statusEl.textContent.includes('失败') && !statusEl.textContent.includes('不可用')) {
+                // 播放活动期间不用"已加载 N 个语音"覆盖播放终态（与 waitForApi catch 同源问题）
+                const playing = isSynthesizing || (playState && playState.state !== 'idle');
+                if (!playing && !statusEl.textContent.includes('失败') && !statusEl.textContent.includes('不可用')) {
                     setStatus(`已加载 ${list.length} 个语音。`);
                 }
             } catch (e) {
@@ -2600,6 +2677,8 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         wireTimelineUI();
         // B1：本地记忆与画像 UI 绑定（与 unit-test-memory.cjs 双实现同步）
         wireMemoryUI();
+        // P0 修复：数据管理面板自身 tab 的独立绑定（脱离向导的全局 handler）
+        wireDataPanelTabs();
 
         // ============ B3-B5：场景向导（任务看板 / PPT 大纲 / 电商文案） ============
         // 纯函数与 unit-test-wizard.cjs 直拷同步（改一处必须同步）
@@ -2824,15 +2903,17 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
 
         function wzWireWizard() {
             // 页签切换
-            const tabs = document.querySelectorAll('.wizard-tab');
-            const panes = document.querySelectorAll('.wizard-body');
+            // P0 修复（2026-10-14，浏览器实测）：原用全局 document.querySelectorAll('.wizard-tab')，
+            // 而 #data-panel 复用同一对 class → 在场景向导点 tab 会把数据管理的 pane 一并 display:none
+            // （实测 before timeline=block → after timeline=none，tab 仍高亮但内容消失，状态自相矛盾）。
+            // 改为作用域限定到本面板；#data-panel 的 tab 由 activateDataTab 独立管理。
+            const wzPanel = document.getElementById('wizard-panel');
+            const tabs = wzPanel ? wzPanel.querySelectorAll('.wizard-tab') : [];
+            const panes = wzPanel ? wzPanel.querySelectorAll('.wizard-body') : [];
             tabs.forEach(t => {
                 t.addEventListener('click', () => {
                     tabs.forEach(x => x.setAttribute('aria-pressed', String(x === t)));
                     panes.forEach(p => { p.style.display = (p.dataset.wtabPane === t.dataset.wtab) ? 'block' : 'none'; });
-                    // 数据管理抽屉：切到 memory 渲染画像；切到 timeline 渲染时间线
-                    if (t.dataset.wtab === 'memory') memoryRender('persona');
-                    else if (t.dataset.wtab === 'timeline') renderTimeline();
                 });
             });
             // 任务看板
@@ -3031,16 +3112,19 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
         }
         function wireMemoryUI() {
             const btn = document.getElementById('memory-btn');
-            const panel = document.getElementById('memory-panel');
+            const panel = document.getElementById('data-panel'); // P0 修复：面板已并入 #data-panel
             if (!btn || !panel) return;
             btn.addEventListener('click', () => {
-                const open = panel.style.display === 'none';
-                panel.style.display = open ? 'block' : 'none';
-                btn.setAttribute('aria-expanded', String(open));
-                if (open) memoryRender('persona');
+                if (!activateDataTab('memory')) return;   // 内部已调 memoryRender('persona')，此处不重复
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                btn.setAttribute('aria-expanded', 'true');
             });
+            // memory-tab 绑定移到 #data-panel 作用域（原来绑在已不存在的 #memory-panel 上）
             panel.querySelectorAll('.memory-tab').forEach(t => {
-                t.addEventListener('click', () => memoryRender(t.getAttribute('data-tab')));
+                t.addEventListener('click', () => {
+                    panel.querySelectorAll('.memory-tab').forEach(x => x.setAttribute('aria-pressed', String(x === t)));
+                    memoryRender(t.getAttribute('data-tab'));
+                });
             });
             const ex = document.getElementById('memory-export');
             if (ex) ex.addEventListener('click', () => {
@@ -3107,7 +3191,15 @@ kbd { background: var(--surface-2); border: 1px solid var(--border-strong); bord
                 initVoices();
             })
             .catch(e => {
-                setStatus(e.message);
+                // 根因（v4.7.1）：waitForApi 最长 12s 才 reject，此刻用户可能已在朗读。
+                // 迟到的降级文案会覆盖播放终态（"播放完毕"），让用户误以为失败。
+                // 故播放活动期间（isSynthesizing 或状态机未回 idle）不写状态栏，只记时间线。
+                const playing = isSynthesizing || (playState && playState.state !== 'idle');
+                if (playing) {
+                    try { pushTimeline('system', 'uncloseai.js 加载失败（朗读中，不打扰：' + e.message + '）', false, 'chat-lib'); } catch (_) {}
+                } else {
+                    setStatus(e.message);
+                }
                 // 库加载失败，但闭环②直连仍可用；initVoices 守卫不覆盖上方错误文案
                 initVoices();
             });
